@@ -1,0 +1,16 @@
+{
+  "name": "Conta Aí",
+  "short_name": "Conta Aí",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0b7285",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
