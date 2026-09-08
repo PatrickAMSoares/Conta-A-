@@ -1895,9 +1895,27 @@ function getHeroSet() { return { id:'svg', pos:null, neg:null }; }
 // Firebase compat API wrappers
 function initializeApp(cfg){ return firebase.initializeApp(cfg); }
 function getFirestore(app){ return firebase.firestore(); }
-function doc(db, col, id){ return firebase.firestore().collection(col).doc(id); }
+function doc(db){
+  var p = Array.prototype.slice.call(arguments, 1);
+  var ref = firebase.firestore();
+  for (var i = 0; i < p.length; i++){
+    ref = (i % 2 === 0) ? ref.collection(p[i]) : ref.doc(p[i]);
+  }
+  return ref;
+}
+function col(db){
+  var p = Array.prototype.slice.call(arguments, 1);
+  var ref = firebase.firestore();
+  for (var i = 0; i < p.length; i++){
+    ref = (i % 2 === 0) ? ref.collection(p[i]) : ref.doc(p[i]);
+  }
+  return ref;
+}
 function getDoc(ref){ return ref.get(); }
-function setDoc(ref, data){ return ref.set(data); }
+function setDoc(ref, data, opts){
+  return (opts && opts.merge) ? ref.set(data, {merge:true}) : ref.set(data);
+}
+function deleteDoc(ref){ return ref.delete(); }
 function onSnapshot(ref, onNext, onErr){ return ref.onSnapshot(onNext, onErr || function(){}); }
 
 // ── FIREBASE CONFIG ──────────────────────────────────────────────────────────
@@ -1913,7 +1931,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const app = firebase.app();
 const db = firebase.firestore();
-try { db.settings({ experimentalForceLongPolling: true, merge: true }); } catch(e) {}
+try { db.settings({ experimentalForceLongPolling: true }); } catch(e) {}
 
 // ── AUTENTICAÇÃO (e-mail/senha + Google) ─────────────────────────────────────
 const auth = firebase.auth();
@@ -2103,24 +2121,114 @@ function applyPrefs(prefs) {
 }
 
 // ── PERSISTÊNCIA ─────────────────────────────────────────────────────────────
-function saveToFirebase() {
+// ── LISTAS QUE VIRAM SUBPASTAS ───────────────────────────────────────────────
+var LISTAS = ['ganhos','fixas','variaveis','economias','notas','agenda'];
+var _ultimoSync = {};
+var _unsubs = [];
+
+function novoId(){
+  return Math.random().toString(36).slice(2,9);
+}
+
+function _tirarFoto(){
+  _ultimoSync = {};
+  LISTAS.forEach(function(lista){
+    _ultimoSync[lista] = {};
+    (DB[lista] || []).forEach(function(item){
+      if (item.id) _ultimoSync[lista][item.id] = JSON.stringify(item);
+    });
+  });
+}
+
+function saveToFirebase(){
   if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
-    if(!DOC_REF) return;
-    setSyncStatus('syncing', 'Salvando…');
-    try {
-      await setDoc(DOC_REF, {
-        planTitle, users, DB,
-        prefs: getPrefs(),
-        email: (auth.currentUser && auth.currentUser.email) || '',
-        updatedAt: new Date().toISOString()
-      });
-      setSyncStatus('online', 'Sincronizado ✓');
-    } catch(e) {
-      console.error('Save error:', e);
-      setSyncStatus('error', 'Erro ao salvar');
-    }
+  saveTimeout = setTimeout(function(){
+    saveTimeout = null;
+    sincronizar();
   }, 800);
+}
+
+async function sincronizar(){
+  if (!currentUID) return;
+  setSyncStatus('syncing', 'Salvando…');
+
+  try {
+    var batch = db.batch();
+    var mudou = 0;
+
+    LISTAS.forEach(function(lista){
+      var atuais = Array.isArray(DB[lista]) ? DB[lista] : [];
+      var presentes = {};
+
+      atuais.forEach(function(item){
+        if (!item.id) item.id = novoId();
+        presentes[item.id] = true;
+        var json = JSON.stringify(item);
+        var antes = _ultimoSync[lista] && _ultimoSync[lista][item.id];
+        if (antes === json) return;                    // não mudou, pula
+        batch.set(doc(db,'financas',currentUID,lista,item.id), item);
+        mudou++;
+      });
+
+      Object.keys(_ultimoSync[lista] || {}).forEach(function(id){
+        if (!presentes[id]){                            // foi apagado localmente
+          batch.delete(doc(db,'financas',currentUID,lista,id));
+          mudou++;
+        }
+      });
+    });
+
+    batch.set(doc(db,'financas',currentUID), {
+      planTitle: planTitle,
+      users: users,
+      prefs: getPrefs(),
+      email: (auth.currentUser && auth.currentUser.email) || '',
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    await batch.commit();
+    _tirarFoto();
+    setSyncStatus('online', 'Sincronizado ✓');
+  } catch(e){
+    console.error('Save error:', e);
+    setSyncStatus('error', 'Erro ao salvar');
+  }
+}
+
+function ordenarLista(lista){
+  if (lista==='ganhos' || lista==='fixas' || lista==='variaveis'){
+    DB[lista].sort(function(a,b){ return (a.y-b.y) || (a.m-b.m); });
+  }
+}
+
+async function carregarListas(uid){
+  for (var i = 0; i < LISTAS.length; i++){
+    var lista = LISTAS[i];
+    var qs = await col(db,'financas',uid,lista).get();
+    DB[lista] = qs.docs.map(function(d){ return d.data(); });
+    ordenarLista(lista);
+  }
+  _tirarFoto();
+}
+
+function ligarListeners(uid){
+  desligarListeners();
+  LISTAS.forEach(function(lista){
+    var un = col(db,'financas',uid,lista).onSnapshot(function(qs){
+      if (qs.metadata.hasPendingWrites) return;   // é a minha própria escrita
+      if (saveTimeout) return;                    // tenho edição local pendente
+      DB[lista] = qs.docs.map(function(d){ return d.data(); });
+      ordenarLista(lista);
+      _tirarFoto();
+      if (typeof render === 'function') render();
+    }, function(err){ console.error('Listener '+lista+':', err); });
+    _unsubs.push(un);
+  });
+}
+
+function desligarListeners(){
+  _unsubs.forEach(function(f){ try{ f(); }catch(e){} });
+  _unsubs = [];
 }
 
 function subscribeFirebase() {
@@ -2200,20 +2308,24 @@ async function startApp(user){
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout-conexao')), 15000))
     ]);
 
-    if (snap.exists) {
+        if (snap.exists) {
       loadFromSnapshot(snap.data());
     } else {
       planTitle = nomePadrao;
       users = [{ name: nomePadrao.split(' ')[0], color: '#b5d63d' }];
       currentUser = users[0].name;
       await setDoc(DOC_REF, {
-        planTitle, users, DB,
+        planTitle: planTitle,
+        users: users,
         prefs: getPrefs(),
         email: user.email || '',
         criadoEm: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
     }
+
+    await carregarListas(user.uid);
+    ligarListeners(user.uid);
 
     ensureCurrentUser();
     updateLabel();
@@ -2244,7 +2356,9 @@ function initAuth(){
   auth.onAuthStateChanged(function(user){
     if(user){
       startApp(user);
-    } else {
+        } else {
+      desligarListeners();
+      _ultimoSync = {};
       resetAppState();
       setSyncStatus('', 'Desconectado');
       showLoginScreen();
