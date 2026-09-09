@@ -2109,6 +2109,40 @@ function getPrefs() {
   };
 }
 
+function updateTemaButtons() {
+  var isLight = document.documentElement.classList.contains('light');
+
+  var alvos = document.querySelectorAll(
+    '[data-tema], [data-theme], #tema-dark, #tema-light, #tema-escuro, #tema-claro'
+  );
+
+  if (!alvos.length) {
+    alvos = Array.prototype.filter.call(
+      document.querySelectorAll('#modal-settings button, #modal-settings .seg-btn'),
+      function (b) {
+        var t = (b.textContent || '');
+        return t.indexOf('Escuro') > -1 || t.indexOf('Claro') > -1;
+      }
+    );
+  }
+
+  Array.prototype.forEach.call(alvos, function (b) {
+    var ref = (
+      b.getAttribute('data-tema') ||
+      b.getAttribute('data-theme') ||
+      b.id ||
+      b.textContent ||
+      ''
+    ).toLowerCase();
+
+    var ehClaro = ref.indexOf('claro') > -1 || ref.indexOf('light') > -1;
+    var ativo = (ehClaro === isLight);
+
+    b.classList.toggle('on', ativo);
+    b.classList.toggle('active', ativo);
+  });
+}
+
 function applyPrefs(prefs) {
   if (!prefs) return;
   if (prefs.theme === 'light') document.documentElement.classList.add('light');
