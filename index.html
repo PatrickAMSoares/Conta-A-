@@ -92,10 +92,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .topbar{
   background:var(--surface);border-bottom:1px solid var(--border);
   padding:0 16px;
+  padding-top:env(safe-area-inset-top, 0px);
   padding-left:max(16px,env(safe-area-inset-left));
   padding-right:max(16px,env(safe-area-inset-right));
   display:flex;align-items:center;justify-content:space-between;
-  height:58px;position:sticky;top:0;z-index:200;gap:10px;
+  height:var(--topbar-h);position:sticky;top:0;z-index:200;gap:10px;
   width:100%;box-sizing:border-box;
 }
 
