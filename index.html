@@ -16,6 +16,99 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+
+/* ═══════════════════════════════════════════════════
+   TOPO COMPACTO + AUTO-HIDE
+   ═══════════════════════════════════════════════════ */
+
+:root{ --topbar-h:58px; }
+
+.topbar{
+  height:var(--topbar-h);
+  transition:transform .26s var(--ease);
+  will-change:transform;
+}
+
+.tabs-bar{
+  position:sticky;
+  top:var(--topbar-h);
+  z-index:190;
+  transition:top .26s var(--ease);
+}
+
+body.topbar-hidden .topbar{ transform:translateY(-100%); }
+body.topbar-hidden .tabs-bar{ top:0; }
+
+/* ── NOME COMPLETO DA PLANILHA ── */
+.logo-wrap{ flex:1 1 auto; min-width:0; }
+.logo-text{
+  max-width:none !important;
+  flex:1 1 auto;
+  min-width:0;
+  white-space:normal;
+  text-overflow:clip;
+  overflow:hidden;
+  overflow-wrap:anywhere;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  line-height:1.15;
+  font-size:clamp(12.5px,3.6vw,15px);
+}
+
+/* ── NOME COMPLETO NA SAUDAÇÃO (saldo-box) ── */
+.saldo-box, .saldo-box *{ min-width:0; }
+.saldo-box :is(div,span,p,h1,h2,h3,h4){
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  overflow-wrap:anywhere;
+  max-width:100%;
+}
+
+/* ── MOBILE ── */
+@media (max-width:600px){
+  :root{ --topbar-h:48px; }
+
+  .topbar{ gap:8px; }
+  .topbar-right{ gap:6px; }
+
+  .month-sel{ padding:3px 8px; font-size:12px; gap:4px; }
+  .month-sel button{ font-size:15px; }
+  .user-pill{ width:26px; height:26px; font-size:11px; border-width:1.5px; }
+  .user-pills{ gap:3px; }
+
+  /* abas mais rentes */
+  .tabs-bar{ padding-top:6px; padding-bottom:6px; gap:3px; }
+  .tab{ padding:7px 13px; font-size:12px; }
+
+  /* respiro do conteúdo */
+  .main{ padding-top:12px !important; }
+  .sum-row{ margin-bottom:14px; }
+
+  /* card de saldo enxuto */
+  .saldo-box{ padding:14px 16px; gap:12px; margin-bottom:12px; }
+  #saldo-emoji{ width:42px; height:42px; }
+  .saldo-val{ font-size:clamp(21px,6.4vw,26px); margin-top:1px; }
+  .saldo-badge{ font-size:11px; padding:2px 8px; margin-top:3px; }
+}
+
+/* ── TELAS ESTREITAS ── */
+@media (max-width:380px){
+  :root{ --topbar-h:44px; }
+  .logo-text{ -webkit-line-clamp:1; font-size:12px; }
+  .tab{ padding:6px 11px; font-size:11.5px; }
+  .saldo-box{ padding:12px 14px; }
+  #saldo-emoji{ width:38px; height:38px; }
+}
+
+/* ── ALTURA REDUZIDA (paisagem) ── */
+@media (max-height:520px){
+  :root{ --topbar-h:44px; }
+  .saldo-box{ padding:10px 14px; }
+  .main{ padding-top:10px !important; }
+}
+
 /* ── PALETA VERDE-FLORESTA ── */
 :root{
   --accent:#22c55e;
@@ -1919,6 +2012,7 @@ function deleteDoc(ref){ return ref.delete(); }
 function onSnapshot(ref, onNext, onErr){ return ref.onSnapshot(onNext, onErr || function(){}); }
 
 // ── FIREBASE CONFIG ──────────────────────────────────────────────────────────
+
 const firebaseConfig = {
   apiKey: "AIzaSyCQ3mTMybqdkr0A-TcbxJWjYHEKcWy5nco",
   authDomain: "conta-ai-a0d87.firebaseapp.com",
@@ -1927,11 +2021,6 @@ const firebaseConfig = {
   messagingSenderId: "917747860067",
   appId: "1:917747860067:web:3b4df49ef40f544ab92e56"
 };
-
-firebase.initializeApp(firebaseConfig);
-const app = firebase.app();
-const db = firebase.firestore();
-try { db.settings({ experimentalForceLongPolling: true }); } catch(e) {}
 
 // ── AUTENTICAÇÃO (e-mail/senha + Google) ─────────────────────────────────────
 const auth = firebase.auth();
@@ -4704,7 +4793,37 @@ window.showSummary=function(type){
 // Already handled via users modal — color picker is there
 
 </script>
+(function(){
+  var lastY = 0, ticking = false;
+  var THRESH = 6, TOP_ZONE = 40;
 
+  function update(){
+    var y = Math.max(0, window.scrollY);
+    var diff = y - lastY;
+
+    if (Math.max(y, TOP_ZONE) === TOP_ZONE) {
+      document.body.classList.remove('topbar-hidden');
+    } else if (Math.min(diff, THRESH) === THRESH) {
+      document.body.classList.add('topbar-hidden');
+    } else if (Math.max(diff, -THRESH) === -THRESH) {
+      document.body.classList.remove('topbar-hidden');
+    }
+
+    if (Math.min(Math.abs(diff), THRESH) === THRESH) lastY = y;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', function(){
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+
+  document.addEventListener('click', function(e){
+    if (e.target.closest('.tab, .btn-add')) {
+      document.body.classList.remove('topbar-hidden');
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
