@@ -2315,9 +2315,29 @@ function subscribeFirebase() {
 }
 
 function ensureCurrentUser(){
+  // Atribui um id estável a participantes antigos que ainda não têm um
+  // (dado novo, sem alterar nome/cor já salvos — nada existente é perdido).
+  users.forEach(function(u){ if(!u.id) u.id = novoId(); });
   if((!currentUser || !users.some(u=>u.name===currentUser)) && users.length){
     currentUser = users[0].name;
   }
+}
+
+function currentUserId(){
+  const u = users.find(x=>x.name===currentUser);
+  return u ? u.id : null;
+}
+
+// Resolve o nome atual de quem lançou um item: usa o id estável (whoId)
+// quando presente — assim, se a pessoa mudar de nome, lançamentos NOVOS
+// acompanham o nome atualizado. Lançamentos antigos (sem whoId) continuam
+// mostrando o nome como estava na hora do lançamento, sem serem alterados.
+function resolveWhoName(item){
+  if(item && item.whoId){
+    const u = users.find(x=>x.id===item.whoId);
+    if(u) return u.name;
+  }
+  return (item && (item.who || item.pessoa)) || '';
 }
 
 // ── CONTROLE DE TELAS ────────────────────────────────────────────────────────
@@ -2700,7 +2720,7 @@ window.saveGanho=function(){
     return;
   }
 
-  DB.ganhos.push({id:uid(),desc,valor,status,forma,pessoa,who,m:cm,y:cy});
+  DB.ganhos.push({id:uid(),desc,valor,status,forma,pessoa,who,whoId:currentUserId(),m:cm,y:cy});
   closeModal('ganhos');
   ['g-desc','g-valor'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
   resetFormaGanho();
@@ -2886,7 +2906,7 @@ window.saveEditFixa = function() {
         const isPastM = y < cy || (y === cy && m < cm);
         const statusM = isPastM ? 'Pago' : repStatus;
         DB.fixas.push({id:uid(), desc:f.desc, cat:f.cat, valor:f.valor, venc:f.venc,
-          status:statusM, who:f.who||currentUser, m, y});
+          status:statusM, who:f.who||currentUser, whoId:f.whoId||currentUserId(), m, y});
         added++;
       }
     }
@@ -3177,12 +3197,13 @@ window.saveVariavel=function(){
   const data  = document.getElementById('v-data').value || new Date().toISOString().slice(0,10);
   const status= document.getElementById('v-status').value;
   const who   = currentUser || 'Eu';
+  const whoId = currentUserId();
   if(!desc || valor <= 0) return alert('Preencha a descrição e o valor.');
 
   const parcOn = document.getElementById('v-parc') && document.getElementById('v-parc').checked;
 
   if(!parcOn){
-    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,m:cm,y:cy});
+    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,whoId,m:cm,y:cy});
     _fecharModalVariavel();
     renderAll(); save();
     return;
@@ -3209,7 +3230,7 @@ window.saveVariavel=function(){
       valor: cent / 100,
       data: dataP,
       status: i === 0 ? status : 'A pagar',
-      who, m: pm, y: py,
+      who, whoId, m: pm, y: py,
       parcGrupo: grupo, parcNum: i + 1, parcTot: qtd
     });
   }
@@ -3602,9 +3623,9 @@ function renderGerais(){
   let off=0;const R=50,CX=60,CY=60,CI=2*Math.PI*R;
   const slices=cats.map(([c,v])=>{const p=v/totCat,d=CI*p,g=CI*(1-p);const s=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${CAT_CLR[c]||'#aaa'}" stroke-width="20" stroke-dasharray="${d} ${g}" stroke-dashoffset="${-off*CI}" style="transform:rotate(-90deg);transform-origin:${CX}px ${CY}px"/>`;off+=p;return s;}).join('');
   donutEl.innerHTML=`<svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="20"/>${slices}</svg><div class="legend">${cats.slice(0,7).map(([c,v])=>`<div class="legend-item"><div class="leg-dot" style="background:${CAT_CLR[c]||'#aaa'}"></div>${CAT_MAP[c]||c}: <strong>${fmt(v)}</strong></div>`).join('')}</div>`;
-  const pesMap={};ganhos.forEach(g=>{if(!pesMap[g.pessoa])pesMap[g.pessoa]=0;pesMap[g.pessoa]+=g.valor;});
+  const pesMap={};ganhos.forEach(g=>{const n=resolveWhoName(g);if(!pesMap[n])pesMap[n]=0;pesMap[n]+=g.valor;});
   const pes=Object.entries(pesMap);
-  document.getElementById('g-pessoas').innerHTML=pes.length?pes.map(([n,v],i)=>`<div class="pessoa-row">${ava(n,avaCls[i]||'')}<div style="flex:1"><div style="font-size:13px;font-weight:600">${n}</div></div><div style="font-size:14px;font-weight:700;color:var(--verde)">${fmt(v)}</div></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:10px 0">Sem dados.</div>';
+  document.getElementById('g-pessoas').innerHTML=pes.length?pes.map(([n,v],i)=>`<div class="pessoa-row">${ava(n,avaCls[i]||'')}<div style="flex:1"><div style="font-size:13px;font-weight:600">${_esc(n)}</div></div><div style="font-size:14px;font-weight:700;color:var(--verde)">${fmt(v)}</div></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:10px 0">Sem dados.</div>';
   // Show previous month overdue in gerais
   const atrasadasG = getAtrasadasMesesAnteriores();
   const gAtEl = document.getElementById('g-atrasadas-anteriores');
@@ -3804,7 +3825,7 @@ window.saveAgenda = function(){
   const tipo  = document.getElementById('ag-tipo').value;
   if(!desc || valor <= 0) return alert('Preencha a descrição e o valor.');
 
-  const obj = { desc, cat, valor, tipo, who: currentUser || 'Eu' };
+  const obj = { desc, cat, valor, tipo, who: currentUser || 'Eu', whoId: currentUserId() };
 
   if(tipo === 'unica'){
     const d = document.getElementById('ag-data').value;
@@ -4075,7 +4096,7 @@ window.confirmarFecharMes = function(){
       id: uid(), desc, valor,
       status: 'Recebido',
       forma: document.getElementById('fechar-forma').value || 'conta',
-      pessoa: quem, who: quem,
+      pessoa: quem, who: quem, whoId: currentUserId(),
       m: prox.m, y: prox.y, fechaMes: marca
     });
   } else {
@@ -4085,7 +4106,7 @@ window.confirmarFecharMes = function(){
       cat: 'outros',
       data: prox.y + '-' + String(prox.m+1).padStart(2,'0') + '-' + String(Math.min(5, ultimoDia)).padStart(2,'0'),
       status: 'A pagar',
-      who: quem,
+      who: quem, whoId: currentUserId(),
       m: prox.m, y: prox.y, fechaMes: marca
     });
   }
@@ -4271,7 +4292,7 @@ window.addNota = function(){
   DB.notas.unshift({
     id: uid(), titulo: '', texto: '',
     cor: NOTA_CORES[0], pin: false,
-    who: currentUser || '',
+    who: currentUser || '', whoId: currentUserId(),
     criadoEm: _notaAgora(), editadoEm: _notaAgora()
   });
   renderNotas(); save();
@@ -4362,7 +4383,8 @@ function renderNotas(){
     const swatches = NOTA_CORES.map(c=>
       `<span class="nota-cor ${c===cor?'sel':''}" style="background:${c}" role="button" tabindex="0" title="Mudar cor" onclick="setNotaCor('${n.id}','${c}')"></span>`
     ).join('');
-    const autor = n.who ? ' · ' + _esc(n.who) : '';
+    const _autorNome = resolveWhoName(n);
+    const autor = _autorNome ? ' · ' + _esc(_autorNome) : '';
     return `<div class="nota-card ${n.pin?'pinned':''}" style="--nota-cor:${cor}">
       <div class="nota-head">
         <input class="nota-titulo" placeholder="Título…" value="${_esc(n.titulo)}"
@@ -4684,7 +4706,7 @@ window.showSummary=function(type){
     html+=row('Total',fmt(total),'var(--accent)');
     html+=row('Recebido',fmt(ganhos.filter(x=>x.status==='Recebido').reduce((a,b)=>a+b.valor,0)),'#86efac');
     html+=row('A receber',fmt(ganhos.filter(x=>x.status==='A receber').reduce((a,b)=>a+b.valor,0)),'var(--azul)');
-    const byP={};ganhos.forEach(g=>{byP[g.pessoa]=(byP[g.pessoa]||0)+g.valor;});
+    const byP={};ganhos.forEach(g=>{const n=resolveWhoName(g);byP[n]=(byP[n]||0)+g.valor;});
     if(Object.keys(byP).length){html+='<h4>Por pessoa</h4>';Object.entries(byP).sort((a,b)=>b[1]-a[1]).forEach(([n,v])=>html+=row(_esc(n),fmt(v)));}
   } else if(type==='fixas'){
     title='📌 Resumo de Despesas Fixas';
