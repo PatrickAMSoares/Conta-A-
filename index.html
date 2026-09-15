@@ -1052,7 +1052,6 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       <stop offset="100%" stop-color="#3a9e42"/>
     </linearGradient>
   </defs>
-  <path d="..." fill="none" stroke="url(#leafGrad3)" stroke-width="8.5" stroke-linejoin="round" stroke-linecap="round"/>
   <rect x="40" y="44" width="6.5" height="15" rx="2" fill="#1f7a3d"/>
   <rect x="49" y="36" width="6.5" height="23" rx="2" fill="#178a41"/>
   <rect x="58" y="27" width="6.5" height="32" rx="2" fill="#0aa347"/>
@@ -1817,9 +1816,6 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <div class="fr"><label>Início</label><input id="ag-inicio" type="month" onchange="updateAgPreview()"></div>
         <div class="fr"><label>Fim</label><input id="ag-fim" type="month" onchange="updateAgPreview()"></div>
       </div>
-        <div class="fr"><label>Início</label><input id="ag-inicio" type="month" onchange="updateAgPreview()"></div>
-        <div class="fr"><label>Fim</label><input id="ag-fim" type="month" onchange="updateAgPreview()"></div>
-      </div>
       <div style="display:flex;align-items:center;gap:9px;margin:-4px 0 12px">
         <input type="checkbox" id="ag-semfim" checked style="width:17px;height:17px;cursor:pointer;accent-color:var(--verde)" onchange="toggleSemFim()">
         <label for="ag-semfim" style="font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)">Sem data final (indefinido)</label>
@@ -2255,7 +2251,7 @@ function ligarListeners(uid){
       DB[lista] = qs.docs.map(function(d){ return d.data(); });
       ordenarLista(lista);
       _tirarFoto();
-      if (typeof render === 'function') render();
+      if (typeof renderAll === 'function') renderAll();
     }, function(err){ console.error('Listener '+lista+':', err); });
     _unsubs.push(un);
   });
@@ -2408,11 +2404,10 @@ function initAuth(){
 function loadFromSnapshot(data) {
   if (data.planTitle) planTitle = data.planTitle;
   if (data.users && Array.isArray(data.users)) users = data.users;
-  if (data.DB) {
-        ['ganhos','fixas','variaveis','economias','notas','agenda'].forEach(k => {
-      if (Array.isArray(data.DB[k])) DB[k] = data.DB[k];
-    });
-  }
+  // NOTA: um campo "DB" legado pode existir neste documento (gravado por uma versão
+  // antiga do PIN). As subcoleções (financas/{uid}/{lista}) são a fonte de verdade
+  // para ganhos/fixas/variaveis/economias/notas/agenda — nunca sobrescrever DB local
+  // a partir daqui, para não reverter dados já sincronizados pelas subcoleções.
   if (data.prefs) applyPrefs(data.prefs);
   ensureCurrentUser();
   updateLabel();
@@ -2708,7 +2703,7 @@ function renderGanhos(){
     const lbl = FORMA_LBL[g.forma] || 'Definir';
     const tip = g.forma ? 'Clique para alternar' : 'Não informado — clique para definir';
     return `<tr id="gr-${g.id}">
-      <td id="g-desc-${g.id}">${g.desc}</td>
+      <td id="g-desc-${g.id}">${_esc(g.desc)}</td>
       <td id="g-val-${g.id}" style="font-weight:700">${fmt(g.valor)}</td>
       <td><span class="forma-tag ${cls}" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
       <td><span class="badge ${ST_CLS[g.status]||''}" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
@@ -3061,7 +3056,7 @@ function renderFixas(){
         ${atrasadas.map(f=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(239,68,68,.15);font-size:12px">
             <div>
-              <span style="color:var(--text);font-weight:600">${f.desc}</span>
+              <span style="color:var(--text);font-weight:600">${_esc(f.desc)}</span>
               <span style="color:var(--muted);margin-left:6px">${MN[f.mesRef]}/${String(f.anoRef).slice(2)}</span>
               <span style="background:rgba(239,68,68,.15);color:#ef4444;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;margin-left:6px">${f.tipo}</span>
             </div>
@@ -3081,7 +3076,7 @@ function renderFixas(){
   if(!items.length){tb.innerHTML=empt('📌','Nenhuma despesa fixa.');document.getElementById('fixas-total').innerHTML='';return;}
   const catOpts=CAT_OPTS.filter(x=>['casa','carro','educacao','seguro','saude','mei','outros'].includes(x.v));
   tb.innerHTML=items.map(f=>`<tr id="fr-${f.id}">
-    <td id="f-desc-${f.id}" onclick="openEditFixa('${f.id}')" style="cursor:pointer" title="Clique para editar">${f.desc}</td>
+    <td id="f-desc-${f.id}" onclick="openEditFixa('${f.id}')" style="cursor:pointer" title="Clique para editar">${_esc(f.desc)}</td>
     <td id="f-cat-${f.id}">${chip(f.cat)}</td>
     <td id="f-val-${f.id}" style="font-weight:700">${fmt(f.valor)}</td>
     <td id="f-venc-${f.id}" style="color:var(--muted);font-size:12px">${f.venc?'Dia '+f.venc:'–'}</td>
@@ -3251,7 +3246,7 @@ function renderVariaveis(){
   tb.innerHTML=items.map(v=>{
     const tag = v.parcTot ? `<span class="parc-tag" title="Parcela ${v.parcNum} de ${v.parcTot}">${v.parcNum}/${v.parcTot}</span>` : '';
     return `<tr id="vr-${v.id}">
-    <td><span id="v-desc-${v.id}">${v.desc}</span>${tag}</td>
+    <td><span id="v-desc-${v.id}">${_esc(v.desc)}</span>${tag}</td>
     <td id="v-cat-${v.id}">${chip(v.cat)}</td>
     <td id="v-data-${v.id}" style="color:var(--muted);font-size:12px">${(v.data||'').split('-').reverse().join('/')}</td>
     <td id="v-val-${v.id}" style="font-weight:700">${fmt(v.valor)}</td>
@@ -3405,7 +3400,7 @@ window.openHistorico=function(id){
       const isOut=h.tipo==='saida';
       return `<div class="hist-item" style="border-bottom:1px solid var(--border);padding:8px 0">
         <span class="hi-date">${h.data}</span>
-        <span style="flex:1;padding:0 8px;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.desc||(isOut?'Retirada':'Depósito')}</span>
+        <span style="flex:1;padding:0 8px;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(h.desc)||(isOut?'Retirada':'Depósito')}</span>
         <span class="hi-val ${isOut?'saida':'entrada'}">${isOut?'−':'+'}${fmt(h.val)}</span>
         <button class="hi-del" onclick="delHistItem('${e.id}','${h.id||''}')" title="Remover lançamento">&times;</button>
       </div>`;
@@ -3418,11 +3413,11 @@ function goalCardHtml(e){
   const pct=e.total>0?Math.min(100,Math.round(e.res/e.total*100)):0;
   const totalEntradas=e.hist.filter(h=>h.tipo==='entrada'||(h.tipo===undefined&&h.val>0)).reduce((a,h)=>a+h.val,0);
   const totalSaidas=e.hist.filter(h=>h.tipo==='saida').reduce((a,h)=>a+h.val,0);
-  const instHtml=e.tipo==='investimento'&&e.inst?`<div class="goal-meta" style="margin-bottom:2px">🏦 ${e.inst}</div>`:'';
+  const instHtml=e.tipo==='investimento'&&e.inst?`<div class="goal-meta" style="margin-bottom:2px">🏦 ${_esc(e.inst)}</div>`:'';
   return `<div class="goal-card">
       <div class="goal-icon">${e.emoji}</div>
       <div class="goal-body">
-        <h4>${e.nome}</h4>
+        <h4>${_esc(e.nome)}</h4>
         ${instHtml}
         <div class="goal-meta">Meta: ${fmt(e.total)}</div>
         <div class="goal-stats">
@@ -3588,7 +3583,7 @@ function renderGerais(){
     gAtEl.innerHTML = `<div class="g-card" style="border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04)">
       <h4 style="color:#ef4444">⚠️ Contas em atraso — meses anteriores</h4>
       ${atrasadasG.map(f=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">
-        <span>${f.desc} <span style="font-size:11px;color:var(--muted)">${MN[f.mesRef]}/${String(f.anoRef).slice(2)}</span></span>
+        <span>${_esc(f.desc)} <span style="font-size:11px;color:var(--muted)">${MN[f.mesRef]}/${String(f.anoRef).slice(2)}</span></span>
         <strong style="color:#ef4444">${fmt(f.valor)}</strong>
       </div>`).join('')}
       <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px">
@@ -3882,7 +3877,7 @@ function renderAgenda(){
     alerta.innerHTML = prox.length ? `<div class="ag-alerta">
       <div class="ag-alerta-tit">⏰ ${prox.length} pagamento${prox.length>1?'s':''} nos próximos 7 dias</div>
       ${prox.map(o=>`<div class="ag-alerta-row">
-        <span>${o.data.slice(8,10)}/${o.data.slice(5,7)} · ${o.ag.desc}</span>
+        <span>${o.data.slice(8,10)}/${o.data.slice(5,7)} · ${_esc(o.ag.desc)}</span>
         <strong style="color:var(--laranja)">${fmt(o.ag.valor)}</strong>
       </div>`).join('')}
     </div>` : '';
@@ -3909,7 +3904,7 @@ function renderAgenda(){
           <div class="s">${DIA_SEM[dt.getDay()]}</div>
         </div>
         <div class="ag-corpo">
-          <div class="ag-desc">${a.desc}</div>
+          <div class="ag-desc">${_esc(a.desc)}</div>
           <div class="ag-meta">
             ${chip(a.cat)}
             ${a.tipo==='recorrente'?`<span class="ag-rec-tag">🔁 ${FREQ_LBL[a.intervalo||1]}</span>`:''}
@@ -4596,12 +4591,14 @@ window.savePin = async function() {
   window._pinHash = btoa(val); // store as hash
   await saveToFirebaseNow();
   document.getElementById('settings-pin').value='****';
-  document.getElementById('pin-status').textContent='🔒 PIN salvo! Válido em qualquer dispositivo.';
+  document.getElementById('pin-status').textContent='🔒 PIN salvo neste dispositivo.';
 };
 
 async function saveToFirebaseNow() {
   if(!DOC_REF) return;
-  await setDoc(DOC_REF, { planTitle, users, DB, prefs: getPrefs(), email:(auth.currentUser&&auth.currentUser.email)||'', updatedAt: new Date().toISOString() });
+  // NÃO incluir DB aqui: os itens já são persistidos nas subcoleções por sincronizar().
+  // Usar merge:true para não sobrescrever/apagar outros campos do documento (ex.: criadoEm).
+  await setDoc(DOC_REF, { planTitle, users, prefs: getPrefs(), email:(auth.currentUser&&auth.currentUser.email)||'', updatedAt: new Date().toISOString() }, { merge: true });
 }
 
 // ── LOCK SCREEN ───────────────────────────────────────────────────────────────
@@ -4665,7 +4662,7 @@ window.showSummary=function(type){
     html+=row('Recebido',fmt(ganhos.filter(x=>x.status==='Recebido').reduce((a,b)=>a+b.valor,0)),'#86efac');
     html+=row('A receber',fmt(ganhos.filter(x=>x.status==='A receber').reduce((a,b)=>a+b.valor,0)),'var(--azul)');
     const byP={};ganhos.forEach(g=>{byP[g.pessoa]=(byP[g.pessoa]||0)+g.valor;});
-    if(Object.keys(byP).length){html+='<h4>Por pessoa</h4>';Object.entries(byP).sort((a,b)=>b[1]-a[1]).forEach(([n,v])=>html+=row(n,fmt(v)));}
+    if(Object.keys(byP).length){html+='<h4>Por pessoa</h4>';Object.entries(byP).sort((a,b)=>b[1]-a[1]).forEach(([n,v])=>html+=row(_esc(n),fmt(v)));}
   } else if(type==='fixas'){
     title='📌 Resumo de Despesas Fixas';
     const total=fixas.reduce((a,b)=>a+b.valor,0);
@@ -4677,7 +4674,7 @@ window.showSummary=function(type){
     const byCat={};fixas.forEach(f=>{byCat[f.cat]=(byCat[f.cat]||0)+f.valor;});
     if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(CAT_MAP[c]||c,fmt(v)));}
     const atrasadas=fixas.filter(x=>x.status==='Em atraso');
-    if(atrasadas.length){html+='<h4 style="color:#ef4444">⚠️ Em atraso</h4>';atrasadas.forEach(f=>html+=row(f.desc,fmt(f.valor),'#ef4444'));}
+    if(atrasadas.length){html+='<h4 style="color:#ef4444">⚠️ Em atraso</h4>';atrasadas.forEach(f=>html+=row(_esc(f.desc),fmt(f.valor),'#ef4444'));}
   } else if(type==='variaveis'){
     title='🛒 Resumo de Despesas Variáveis';
     const total=vars.reduce((a,b)=>a+b.valor,0);
@@ -4694,7 +4691,7 @@ window.showSummary=function(type){
     html+=row('Total de metas',fmt(tM));
     html+=row('Total reservado',fmt(tR),'var(--accent)');
     html+=row('Falta atingir',fmt(Math.max(0,tM-tR)),'var(--azul)');
-    if(DB.economias.length){html+='<h4>Por meta</h4>';DB.economias.forEach(e=>{const pct=Math.min(100,Math.round(e.res/e.total*100));html+=row(`${e.emoji} ${e.nome}`,`${fmt(e.res)} (${pct}%)`,pct>=100?'var(--accent)':'var(--text)');});}
+    if(DB.economias.length){html+='<h4>Por meta</h4>';DB.economias.forEach(e=>{const pct=Math.min(100,Math.round(e.res/e.total*100));html+=row(`${e.emoji} ${_esc(e.nome)}`,`${fmt(e.res)} (${pct}%)`,pct>=100?'var(--accent)':'var(--text)');});}
   }
   document.getElementById('summary-title').textContent=title;
   document.getElementById('summary-content').innerHTML=html||'<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0">Nenhum dado neste mês.</p>';
