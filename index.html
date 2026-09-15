@@ -1107,6 +1107,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       </div>
     </div>
 
+    <div style="position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:11.5px;color:rgba(255,255,255,.4);z-index:1">by Create Art</div>
   </div>
 </div>
 
@@ -1218,8 +1219,9 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <div><div class="table-title">Despesas Variáveis</div><div class="table-hint">✏️ Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('variaveis')">+ Adicionar</button>
   </div>
+  <div id="variaveis-por-cartao" style="margin-bottom:12px"></div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>Descrição</th><th>Categoria</th><th>Data</th><th>Valor</th><th>Pago em</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Descrição</th><th>Categoria</th><th>Cartão</th><th>Data</th><th>Valor</th><th>Pago em</th><th>Status</th><th></th></tr></thead>
     <tbody id="tb-variaveis"></tbody>
   </table></div>
   <div id="variaveis-total" style="text-align:right;margin-top:10px;font-size:13px;color:var(--muted)"></div>
@@ -1357,6 +1359,17 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       </select>
     </div>
     <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('users')">Fechar</button><button class="btn-add" onclick="addUser()">Adicionar</button></div>
+  </div>
+</div>
+
+<!-- MODAL CARTÕES -->
+<div class="modal-bg" id="modal-cartoes">
+  <div class="modal">
+    <h3>Cartões</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Crie cartões para agrupar despesas variáveis por cartão.</p>
+    <div id="cartoes-list"></div>
+    <div class="fr" style="margin-top:12px"><label>Nome do cartão</label><input id="new-cartao-name" placeholder="Ex: Nubank, Inter…"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('cartoes')">Fechar</button><button class="btn-add" onclick="addCartao()">Adicionar</button></div>
   </div>
 </div>
 
@@ -1503,6 +1516,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       <div class="fr"><label>Data</label><input id="v-data" type="date"></div>
       <div class="fr"><label>Status</label><select id="v-status"><option value="A pagar">A pagar</option><option value="Pago">Pago</option><option value="Em atraso">Em atraso</option></select></div>
     </div>
+    <div class="fr"><label>Cartão</label><select id="v-cartao"></select></div>
     <!-- PARCELAMENTO -->
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -1631,6 +1645,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <div class="settings-row-body">
           <div class="settings-row-title">Participantes</div>
           <div class="settings-row-sub">Quem usa esta planilha</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('cartoes')">
+        <div class="settings-ico" style="background:rgba(167,139,250,.14);color:var(--roxo)">💳</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Cartões</div>
+          <div class="settings-row-sub">Agrupe despesas variáveis por cartão</div>
         </div>
         <span class="settings-chevron">›</span>
       </div>
@@ -2092,6 +2115,7 @@ let cy = new Date().getFullYear();
 let planTitle = '';
 let currentUser = '';
 let users = [];
+let cartoes = [];
 const DB={ganhos:[],fixas:[],variaveis:[],economias:[],notas:[],agenda:[]};
 let isSaving=false;
 let saveTimeout=null;
@@ -2189,6 +2213,7 @@ function _metaSnapshot(){
   return JSON.stringify({
     planTitle: planTitle,
     users: users,
+    cartoes: cartoes,
     prefs: getPrefs(),
     email: (auth.currentUser && auth.currentUser.email) || ''
   });
@@ -2248,6 +2273,7 @@ async function sincronizar(){
       batch.set(doc(db,'financas',currentUID), {
         planTitle: planTitle,
         users: users,
+        cartoes: cartoes,
         prefs: getPrefs(),
         email: (auth.currentUser && auth.currentUser.email) || '',
         updatedAt: new Date().toISOString()
@@ -2374,7 +2400,7 @@ function resetAppState(){
   window._unsubscribe && window._unsubscribe();
   window._unsubscribe = null;
   DOC_REF = null; currentUID = '';
-  planTitle = ''; currentUser = ''; users = [];
+  planTitle = ''; currentUser = ''; users = []; cartoes = [];
   ['ganhos','fixas','variaveis','economias','notas'].forEach(k => DB[k] = []);
   cm = new Date().getMonth();
   cy = new Date().getFullYear();
@@ -2462,6 +2488,7 @@ function initAuth(){
 function loadFromSnapshot(data) {
   if (data.planTitle) planTitle = data.planTitle;
   if (data.users && Array.isArray(data.users)) users = data.users;
+  if (data.cartoes && Array.isArray(data.cartoes)) cartoes = data.cartoes;
   // NOTA: um campo "DB" legado pode existir neste documento (gravado por uma versão
   // antiga do PIN). As subcoleções (financas/{uid}/{lista}) são a fonte de verdade
   // para ganhos/fixas/variaveis/economias/notas/agenda — nunca sobrescrever DB local
@@ -2539,6 +2566,45 @@ function renderUsersList(){
     </div>`).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Nenhum participante ainda.</div>';
 }
 window.removeUser=function(i){users.splice(i,1);ensureCurrentUser();renderUsersList();renderUserPills();save();};
+
+// ── CARTÕES ──────────────────────────────────────────────────────────────────
+function cartaoNome(id){
+  const c = cartoes.find(x=>x.id===id);
+  return c ? c.nome : '';
+}
+function cartaoOpts(){
+  return [{v:'',l:'Nenhum'}].concat(cartoes.map(c=>({v:c.id,l:c.nome})));
+}
+function renderCartoesList(){
+  const el=document.getElementById('cartoes-list');
+  if(!el) return;
+  el.innerHTML=cartoes.length ? cartoes.map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">💳 ${_esc(c.nome)}</span>
+      <button class="btn-del" onclick="removeCartao(${i})">✕</button>
+    </div>`).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Nenhum cartão ainda.</div>';
+}
+function renderCartaoOptions(){
+  const sel=document.getElementById('v-cartao');
+  if(!sel) return;
+  const atual=sel.value;
+  sel.innerHTML=cartaoOpts().map(o=>`<option value="${o.v}" ${o.v===atual?'selected':''}>${_esc(o.l)}</option>`).join('');
+}
+window.addCartao=function(){
+  const nome=document.getElementById('new-cartao-name').value.trim();
+  if(!nome)return;
+  if(!cartoes.find(c=>c.nome===nome)) cartoes.push({id:novoId(),nome});
+  document.getElementById('new-cartao-name').value='';
+  renderCartoesList();
+  renderCartaoOptions();
+  save();
+};
+window.removeCartao=function(i){
+  cartoes.splice(i,1);
+  renderCartoesList();
+  renderCartaoOptions();
+  save();
+};
 
 // ── INLINE EDIT ──────────────────────────────────────────────────────────────
 function makeEditable(tdEl,currentVal,type,opts,onSave){
@@ -2637,6 +2703,7 @@ window.enviarResetLogado = async function(){
 };
 window.openModal=function(n){
   if(n==='users') renderUsersList();
+  if(n==='cartoes') renderCartoesList();
   if(n==='settings') initSettingsModal();
   const el = document.getElementById('modal-'+n);
   if(el) el.classList.add('open');
@@ -2651,6 +2718,7 @@ window.openModal=function(n){
     if(pv) pv.textContent='';
     const dt=document.getElementById('v-data');
     if(dt && !dt.value) dt.value=new Date().toISOString().slice(0,10);
+    renderCartaoOptions();
   }
   if(n==='agenda'){ abrirAgendaModal(); }
   if(n==='fechar'){ abrirFecharMes(); }
@@ -3198,12 +3266,14 @@ window.saveVariavel=function(){
   const status= document.getElementById('v-status').value;
   const who   = currentUser || 'Eu';
   const whoId = currentUserId();
+  const cartaoEl = document.getElementById('v-cartao');
+  const cartaoId = cartaoEl && cartaoEl.value ? cartaoEl.value : null;
   if(!desc || valor <= 0) return alert('Preencha a descrição e o valor.');
 
   const parcOn = document.getElementById('v-parc') && document.getElementById('v-parc').checked;
 
   if(!parcOn){
-    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,whoId,m:cm,y:cy});
+    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,whoId,cartaoId,m:cm,y:cy});
     _fecharModalVariavel();
     renderAll(); save();
     return;
@@ -3230,7 +3300,7 @@ window.saveVariavel=function(){
       valor: cent / 100,
       data: dataP,
       status: i === 0 ? status : 'A pagar',
-      who, whoId, m: pm, y: py,
+      who, whoId, cartaoId, m: pm, y: py,
       parcGrupo: grupo, parcNum: i + 1, parcTot: qtd
     });
   }
@@ -3293,12 +3363,18 @@ window.delVariavel=function(id){
 function renderVariaveis(){
   const items=DB.variaveis.filter(x=>x.m===cm&&x.y===cy).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
   const tb=document.getElementById('tb-variaveis');
-  if(!items.length){tb.innerHTML=empt('🛒','Nenhuma despesa variável.');document.getElementById('variaveis-total').innerHTML='';return;}
+  if(!items.length){
+    tb.innerHTML=empt('🛒','Nenhuma despesa variável.');
+    document.getElementById('variaveis-total').innerHTML='';
+    const pcEl=document.getElementById('variaveis-por-cartao'); if(pcEl) pcEl.innerHTML='';
+    return;
+  }
   tb.innerHTML=items.map(v=>{
     const tag = v.parcTot ? `<span class="parc-tag" title="Parcela ${v.parcNum} de ${v.parcTot}">${v.parcNum}/${v.parcTot}</span>` : '';
     return `<tr id="vr-${v.id}">
     <td><span id="v-desc-${v.id}">${_esc(v.desc)}</span>${tag}</td>
     <td id="v-cat-${v.id}">${chip(v.cat)}</td>
+    <td id="v-cartao-${v.id}" style="color:var(--muted);font-size:12px">${v.cartaoId?('💳 '+_esc(cartaoNome(v.cartaoId))):'–'}</td>
     <td id="v-data-${v.id}" style="color:var(--muted);font-size:12px">${(v.data||'').split('-').reverse().join('/')}</td>
     <td id="v-val-${v.id}" style="font-weight:700">${fmt(v.valor)}</td>
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
@@ -3308,10 +3384,21 @@ function renderVariaveis(){
   items.forEach(v=>{
     makeEditable(document.getElementById(`v-desc-${v.id}`),v.desc,'text',[],val=>{v.desc=val||v.desc;});
     makeEditable(document.getElementById(`v-cat-${v.id}`),v.cat,'select',CAT_OPTS,val=>{v.cat=val;});
+    makeEditable(document.getElementById(`v-cartao-${v.id}`),v.cartaoId||'','select',cartaoOpts(),val=>{v.cartaoId=val||null;});
     makeEditable(document.getElementById(`v-data-${v.id}`),v.data,'date',[],val=>{v.data=val||v.data;});
     makeEditable(document.getElementById(`v-val-${v.id}`),v.valor,'number',[],val=>{v.valor=val;});
   });
   document.getElementById('variaveis-total').innerHTML=`Total variáveis: <strong style="color:#f87171">${fmt(items.reduce((a,b)=>a+b.valor,0))}</strong>`;
+
+  const pcEl=document.getElementById('variaveis-por-cartao');
+  if(pcEl){
+    const porCartao={};
+    items.forEach(v=>{ if(v.cartaoId) porCartao[v.cartaoId]=(porCartao[v.cartaoId]||0)+v.valor; });
+    const entradas=Object.entries(porCartao);
+    pcEl.innerHTML = entradas.length ? `<div class="g-card"><h4>💳 Por cartão</h4>${entradas.sort((a,b)=>b[1]-a[1]).map(([id,v])=>
+      `<div class="pessoa-row"><div style="flex:1;font-size:13px;font-weight:600">${_esc(cartaoNome(id))}</div><div style="font-size:14px;font-weight:700;color:#f87171">${fmt(v)}</div></div>`
+    ).join('')}</div>` : '';
+  }
 }
 
 // ── ECONOMIAS ────────────────────────────────────────────────────────────────
@@ -4729,6 +4816,8 @@ window.showSummary=function(type){
     html+=row('A pagar',fmt(vars.filter(x=>(x.status||'A pagar')==='A pagar').reduce((a,b)=>a+b.valor,0)),'var(--laranja)');
     const byCat={};vars.forEach(v=>{byCat[v.cat]=(byCat[v.cat]||0)+v.valor;});
     if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(CAT_MAP[c]||c,fmt(v)));}
+    const byCartao={};vars.forEach(v=>{if(v.cartaoId)byCartao[v.cartaoId]=(byCartao[v.cartaoId]||0)+v.valor;});
+    if(Object.keys(byCartao).length){html+='<h4>Por cartão</h4>';Object.entries(byCartao).sort((a,b)=>b[1]-a[1]).forEach(([id,v])=>html+=row('💳 '+_esc(cartaoNome(id)),fmt(v)));}
   } else if(type==='economias'){
     title='🏦 Resumo de Investimentos';
     const tM=DB.economias.reduce((a,b)=>a+b.total,0),tR=DB.economias.reduce((a,b)=>a+b.res,0);
