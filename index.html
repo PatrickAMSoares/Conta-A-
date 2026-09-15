@@ -200,6 +200,7 @@ tbody td{padding:10px 13px;vertical-align:middle;}
 /* INLINE EDIT */
 .editable{cursor:pointer;border-radius:6px;padding:3px 5px;margin:-3px -5px;transition:background .15s;}
 .editable:hover{background:rgba(181,214,61,.1);outline:1px dashed rgba(181,214,61,.35);}
+.edit-pencil{font-size:10px;opacity:.5;margin-left:5px;vertical-align:middle;}
 .inline-input{background:var(--surface2);border:1.5px solid rgba(181,214,61,.6);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;border-radius:7px;padding:4px 8px;width:100%;min-width:70px;outline:none;}
 .inline-select{background:var(--surface2);border:1.5px solid rgba(181,214,61,.6);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;border-radius:7px;padding:4px 8px;outline:none;}
 
@@ -2613,6 +2614,7 @@ function makeEditable(tdEl,currentVal,type,opts,onSave){
   tdEl.title='Toque para editar';
   tdEl.setAttribute('role','button');
   tdEl.setAttribute('tabindex','0');
+  tdEl.insertAdjacentHTML('beforeend', '<span class="edit-pencil">✏️</span>');
   tdEl.onclick=(e)=>{
     e.stopPropagation();
     if(tdEl.classList.contains('editing'))return;
@@ -2630,14 +2632,17 @@ function makeEditable(tdEl,currentVal,type,opts,onSave){
     }
     tdEl.innerHTML='';tdEl.appendChild(input);input.focus();
     if(type!=='select')input.select();
+    let committed=false;
     const commit=()=>{
+      if(committed)return;
+      committed=true;
       const val=type==='number'?parseFloat(input.value)||0:input.value;
       tdEl.classList.remove('editing');
       onSave(val);
       renderAll();
       save();
     };
-    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}if(e.key==='Escape'){tdEl.classList.remove('editing');tdEl.innerHTML=original;}});
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}if(e.key==='Escape'){committed=true;tdEl.classList.remove('editing');tdEl.innerHTML=original;}});
     input.addEventListener('blur',commit);
     if(type==='select')input.addEventListener('change',commit);
   };
