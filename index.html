@@ -1120,7 +1120,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 </div>
 <div class="topbar">
   <div class="logo-wrap">
-    <div id="logo-display" class="logo-text" onclick="editTitle()" style="font-size:15px;font-weight:600;letter-spacing:0" title="Clique para editar o nome"><span style="color:var(--muted);font-weight:400;font-family:'Inter',sans-serif">Conta Aí · </span>
+    <div id="logo-display" class="logo-text" role="button" tabindex="0" onclick="editTitle()" style="font-size:15px;font-weight:600;letter-spacing:0" title="Clique para editar o nome"><span style="color:var(--muted);font-weight:400;font-family:'Inter',sans-serif">Conta Aí · </span>
 
 <span style="color:var(--accent);font-weight:700" id="logo-name"></span></div>
   </div>
@@ -1137,15 +1137,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 </div>
 
 <div class="tabs-bar">
-  <div class="tab active" onclick="switchTab(this,'gerais')">Gerais</div>
-  <div class="tab" onclick="switchTab(this,'ganhos')">Receitas</div>
-  <div class="tab" onclick="switchTab(this,'fixas')">Despesas Fixas</div>
-  <div class="tab" onclick="switchTab(this,'variaveis')">Despesas Variáveis</div>
-  <div class="tab" onclick="switchTab(this,'economias')">Investimentos</div>
-  <div class="tab" onclick="switchTab(this,'anual')">Visão Anual</div>
-  <div class="tab" onclick="switchTab(this,'panorama')">Panorama</div>
-  <div class="tab" onclick="switchTab(this,'agenda')">Agenda</div>
-  <div class="tab" onclick="switchTab(this,'notas')">Notas</div>
+  <div class="tab active" role="button" tabindex="0" onclick="switchTab(this,'gerais')">Gerais</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'ganhos')">Receitas</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'fixas')">Despesas Fixas</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'variaveis')">Despesas Variáveis</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'economias')">Investimentos</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'anual')">Visão Anual</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'panorama')">Panorama</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'agenda')">Agenda</div>
+  <div class="tab" role="button" tabindex="0" onclick="switchTab(this,'notas')">Notas</div>
 </div>
 
 <div class="main">
@@ -1626,7 +1626,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         </div>
       </div>
 
-      <div class="settings-row clickable" onclick="openModal('users')">
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('users')">
         <div class="settings-ico" style="background:rgba(232,78,156,.14);color:var(--rosa)">👥</div>
         <div class="settings-row-body">
           <div class="settings-row-title">Participantes</div>
@@ -1635,7 +1635,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <span class="settings-chevron">›</span>
       </div>
 
-      <div class="settings-row clickable" onclick="openModal('popup-icones')">
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('popup-icones')">
         <div class="settings-ico" style="background:rgba(34,197,94,.14);color:var(--verde)">🖼️</div>
         <div class="settings-row-body">
           <div class="settings-row-title">Ícones do saldo</div>
@@ -1644,7 +1644,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <span class="settings-chevron">›</span>
       </div>
 
-      <div class="settings-row clickable" onclick="openModal('conta')">
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('conta')">
         <div class="settings-ico" style="background:rgba(34,197,94,.14);color:var(--verde)">🔐</div>
         <div class="settings-row-body">
           <div class="settings-row-title">Minha conta</div>
@@ -1653,7 +1653,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <span class="settings-chevron">›</span>
       </div>
 
-      <div class="settings-row clickable settings-danger" onclick="logoutApp()" style="border-bottom:none">
+      <div class="settings-row clickable settings-danger" role="button" tabindex="0" onclick="logoutApp()" style="border-bottom:none">
         <div class="settings-ico">🚪</div>
         <div class="settings-row-body">
           <div class="settings-row-title">Sair da planilha</div>
@@ -1711,7 +1711,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <h3 style="margin-bottom:6px">⬇ Baixar dados</h3>
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:18px">Escolha o período que deseja exportar.</p>
 
-    <div class="settings-row clickable" onclick="exportTXT('mes')">
+    <div class="settings-row clickable" role="button" tabindex="0" onclick="exportTXT('mes')">
       <div class="settings-ico" style="background:rgba(91,156,246,.14);color:var(--azul)">📅</div>
       <div class="settings-row-body">
         <div class="settings-row-title">Mês atual</div>
@@ -1720,7 +1720,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       <span class="settings-chevron">›</span>
     </div>
 
-    <div class="settings-row clickable" onclick="exportTXT('ano')" style="border-bottom:none">
+    <div class="settings-row clickable" role="button" tabindex="0" onclick="exportTXT('ano')" style="border-bottom:none">
       <div class="settings-ico" style="background:rgba(181,214,61,.14);color:var(--accent)">🗓️</div>
       <div class="settings-row-body">
         <div class="settings-row-title">Ano completo</div>
@@ -2457,7 +2457,7 @@ window.copyShareLink=function(){
 function renderUserPills(){
   const pills=document.getElementById('user-pills');
   if(!pills) return;
-  pills.innerHTML=users.map(u=>`<div class="user-pill ${currentUser===u.name?'active':''}" style="background:${u.color}" onclick="setCurrentUser('${u.name}')" title="${u.name}">${u.name[0].toUpperCase()}</div>`).join('');
+  pills.innerHTML=users.map(u=>`<div class="user-pill ${currentUser===u.name?'active':''}" style="background:${u.color}" role="button" tabindex="0" onclick="setCurrentUser('${u.name}')" title="${u.name}">${u.name[0].toUpperCase()}</div>`).join('');
   pills.style.display = users.length > 1 ? 'flex' : 'none';
 
   ['g-who','f-who','v-who'].forEach(id=>{
@@ -2497,6 +2497,8 @@ function makeEditable(tdEl,currentVal,type,opts,onSave){
   if(!tdEl) return;
   tdEl.classList.add('editable');
   tdEl.title='Toque para editar';
+  tdEl.setAttribute('role','button');
+  tdEl.setAttribute('tabindex','0');
   tdEl.onclick=(e)=>{
     e.stopPropagation();
     if(tdEl.classList.contains('editing'))return;
@@ -2705,8 +2707,8 @@ function renderGanhos(){
     return `<tr id="gr-${g.id}">
       <td id="g-desc-${g.id}">${_esc(g.desc)}</td>
       <td id="g-val-${g.id}" style="font-weight:700">${fmt(g.valor)}</td>
-      <td><span class="forma-tag ${cls}" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
-      <td><span class="badge ${ST_CLS[g.status]||''}" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
+      <td><span class="forma-tag ${cls}" role="button" tabindex="0" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
+      <td><span class="badge ${ST_CLS[g.status]||''}" role="button" tabindex="0" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
       <td><button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
     </tr>`;
   }).join('');
@@ -3081,7 +3083,7 @@ function renderFixas(){
     <td id="f-val-${f.id}" style="font-weight:700">${fmt(f.valor)}</td>
     <td id="f-venc-${f.id}" style="color:var(--muted);font-size:12px">${f.venc?'Dia '+f.venc:'–'}</td>
     <td style="font-size:12px;color:${f.dataPago?'#86efac':'var(--muted2)'}">${f.dataPago||'–'}</td>
-    <td><span class="badge ${ST_CLS[f.status]||''}" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
+    <td><span class="badge ${ST_CLS[f.status]||''}" role="button" tabindex="0" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
     <td><button class="btn-del" onclick="delFixa('${f.id}')">✕</button></td>
   </tr>`).join('');
   items.forEach(f=>{
@@ -3251,7 +3253,7 @@ function renderVariaveis(){
     <td id="v-data-${v.id}" style="color:var(--muted);font-size:12px">${(v.data||'').split('-').reverse().join('/')}</td>
     <td id="v-val-${v.id}" style="font-weight:700">${fmt(v.valor)}</td>
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
-    <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
+    <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
     <td><button class="btn-del" onclick="delVariavel('${v.id}')">✕</button></td>
   </tr>`;}).join('');
   items.forEach(v=>{
@@ -3493,7 +3495,7 @@ function renderGerais(){
   const fixas=DB.fixas.filter(x=>x.m===cm&&x.y===cy);
   const vars=DB.variaveis.filter(x=>x.m===cm&&x.y===cy);
   const tG=ganhos.reduce((a,b)=>a+b.valor,0),tF=fixas.reduce((a,b)=>a+b.valor,0),tV=vars.reduce((a,b)=>a+b.valor,0),tE=DB.economias.reduce((a,b)=>a+b.res,0),diff=tG-tF-tV;
-  document.getElementById('s-gerais').innerHTML=`<div class="sum-card pos clickable" onclick="showSummary('ganhos')" title="Ver resumo de Receitas"><div class="sum-ico" style="background:rgba(34,197,94,.14);color:var(--verde)">💰</div><div class="sum-body"><div class="lbl">Total Receitas</div><div class="val" style="color:var(--verde) !important">${fmt(tG)}</div></div></div><div class="sum-card clickable" onclick="showSummary('fixas')" title="Ver resumo de Fixas"><div class="sum-ico" style="background:rgba(239,68,68,.14);color:#ef4444">📌</div><div class="sum-body"><div class="lbl">Despesas Fixas</div><div class="val" style="color:#ef4444 !important">${fmt(tF)}</div></div></div><div class="sum-card clickable" onclick="showSummary('variaveis')" title="Ver resumo de Variáveis"><div class="sum-ico" style="background:rgba(239,68,68,.14);color:#ef4444">🛒</div><div class="sum-body"><div class="lbl">Despesas Variáveis</div><div class="val" style="color:#ef4444 !important">${fmt(tV)}</div></div></div><div class="sum-card info clickable" onclick="showSummary('economias')" title="Ver resumo de Investimentos"><div class="sum-ico" style="background:rgba(91,156,246,.14);color:var(--azul)">📈</div><div class="sum-body"><div class="lbl">Investimentos</div><div class="val" style="color:var(--azul) !important">${fmt(tE)}</div></div></div>`;
+  document.getElementById('s-gerais').innerHTML=`<div class="sum-card pos clickable" role="button" tabindex="0" onclick="showSummary('ganhos')" title="Ver resumo de Receitas"><div class="sum-ico" style="background:rgba(34,197,94,.14);color:var(--verde)">💰</div><div class="sum-body"><div class="lbl">Total Receitas</div><div class="val" style="color:var(--verde) !important">${fmt(tG)}</div></div></div><div class="sum-card clickable" role="button" tabindex="0" onclick="showSummary('fixas')" title="Ver resumo de Fixas"><div class="sum-ico" style="background:rgba(239,68,68,.14);color:#ef4444">📌</div><div class="sum-body"><div class="lbl">Despesas Fixas</div><div class="val" style="color:#ef4444 !important">${fmt(tF)}</div></div></div><div class="sum-card clickable" role="button" tabindex="0" onclick="showSummary('variaveis')" title="Ver resumo de Variáveis"><div class="sum-ico" style="background:rgba(239,68,68,.14);color:#ef4444">🛒</div><div class="sum-body"><div class="lbl">Despesas Variáveis</div><div class="val" style="color:#ef4444 !important">${fmt(tV)}</div></div></div><div class="sum-card info clickable" role="button" tabindex="0" onclick="showSummary('economias')" title="Ver resumo de Investimentos"><div class="sum-ico" style="background:rgba(91,156,246,.14);color:var(--azul)">📈</div><div class="sum-body"><div class="lbl">Investimentos</div><div class="val" style="color:var(--azul) !important">${fmt(tE)}</div></div></div>`;
   const sdEl=document.getElementById('saldo-num');
   const isNeg=diff<0;
   sdEl.textContent=(isNeg?'– ':'')+fmt(Math.abs(diff));
@@ -4330,7 +4332,7 @@ function renderNotas(){
   grid.innerHTML = ordenadas.map(n=>{
     const cor = n.cor || NOTA_CORES[0];
     const swatches = NOTA_CORES.map(c=>
-      `<span class="nota-cor ${c===cor?'sel':''}" style="background:${c}" title="Mudar cor" onclick="setNotaCor('${n.id}','${c}')"></span>`
+      `<span class="nota-cor ${c===cor?'sel':''}" style="background:${c}" role="button" tabindex="0" title="Mudar cor" onclick="setNotaCor('${n.id}','${c}')"></span>`
     ).join('');
     const autor = n.who ? ' · ' + _esc(n.who) : '';
     return `<div class="nota-card ${n.pin?'pinned':''}" style="--nota-cor:${cor}">
@@ -4532,6 +4534,11 @@ const THEME_COLORS = [
   {name:'Vermelho', hex:'#f87171'},{name:'Amarelo', hex:'#fbbf24'},
 ];
 // ── THEME TOGGLE ──────────────────────────────────────────────────────────────
+window.setTema = function(tema){
+  applyPrefs({ theme: tema });
+  save();
+};
+
 window.toggleThemeMode = function() {
   const isLight = document.documentElement.classList.contains('light');
   // Chama setTema que já cuida de tudo: localStorage + Firebase + botões
@@ -4559,6 +4566,50 @@ function updateThemeToggleBtn() {
 })();
 
 // ── SETTINGS MODAL ────────────────────────────────────────────────────────────
+window.togglePlanEdit = function(){
+  const pe = document.getElementById('settings-plan-edit');
+  if(!pe) return;
+  const show = pe.style.display === 'none' || !pe.style.display;
+  pe.style.display = show ? 'flex' : 'none';
+  if(show){
+    const inp = document.getElementById('settings-title');
+    if(inp){ inp.value = planTitle || ''; inp.focus(); }
+  }
+};
+
+window.toggleUserEdit = function(){
+  const ue = document.getElementById('settings-user-edit');
+  if(!ue) return;
+  const show = ue.style.display === 'none' || !ue.style.display;
+  ue.style.display = show ? 'block' : 'none';
+  const statusEl = document.getElementById('settings-user-status');
+  if(statusEl) statusEl.textContent = '';
+  if(show){
+    const inp = document.getElementById('settings-username-input');
+    if(inp){ inp.value = currentUser || ''; inp.focus(); }
+  }
+};
+
+window.saveUsername = function(){
+  const inp = document.getElementById('settings-username-input');
+  const statusEl = document.getElementById('settings-user-status');
+  if(!inp) return;
+  const novo = inp.value.trim();
+  if(!novo){ if(statusEl) statusEl.textContent = 'Informe um nome.'; return; }
+  if(novo !== currentUser && users.some(u=>u.name===novo)){
+    if(statusEl) statusEl.textContent = 'Já existe um participante com esse nome.';
+    return;
+  }
+  const u = users.find(x=>x.name===currentUser);
+  if(u) u.name = novo;
+  currentUser = novo;
+  renderUserPills();
+  renderUsersList();
+  updateLabel();
+  if(statusEl) statusEl.textContent = '✅ Nome atualizado!';
+  save();
+};
+
 window.saveSettingsTitle = async function() {
   const pe = document.getElementById('settings-plan-edit');
   if(pe) pe.style.display = 'none';
@@ -4637,8 +4688,23 @@ window.checkPin=function(){
     if(senhaEl) { senhaEl.value=''; senhaEl.focus(); }
   }
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!document.getElementById('lock-screen').classList.contains('hidden'))checkPin(); });
+document.addEventListener('keydown',e=>{
+  const lockEl = document.getElementById('lock-screen');
+  if(e.key==='Enter' && lockEl && !lockEl.classList.contains('hidden')) checkPin();
+});
 window.logoutWorkspace=function(){ if(!confirm('Sair desta planilha?'))return; localStorage.removeItem('financas_workspace'); location.reload(); };
+
+// ── ACESSIBILIDADE: ativação por teclado de elementos clicáveis não-<button> ──
+// (abas, linhas de configuração, cartões de resumo, avatares de usuário, células
+// editáveis etc. usam role="button" + tabindex="0"; aqui só ligamos Enter/Espaço
+// ao clique, via delegação — funciona também para itens renderizados depois)
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  const el = e.target.closest('[role="button"]');
+  if(!el || el.tagName === 'BUTTON' || el.tagName === 'A') return;
+  e.preventDefault();
+  el.click();
+});
 
 // Hook into startFirebase to show lock after connection
 const _origRenderAll = renderAll;
