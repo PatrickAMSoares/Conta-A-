@@ -2083,10 +2083,6 @@ window.showToast = function(msg, type){
   _toastTimer = setTimeout(()=>{ el.className = 'toast' + (type ? ' ' + type : ''); }, 2600);
 };
 
-// ── SLUG ─────────────────────────────────────────────────────────────────────
-function toSlug(str){
-  return str.trim().replace(/[\/]/g,'-').replace(/\.\./g,'-').replace(/^__/,'--') || 'minha-planilha';
-}
 function toSlugCompare(str){ return str.trim(); }
 
 // ── SYNC STATUS ──────────────────────────────────────────────────────────────
@@ -2155,10 +2151,20 @@ function applyPrefs(prefs) {
 // ── LISTAS QUE VIRAM SUBPASTAS ───────────────────────────────────────────────
 var LISTAS = ['ganhos','fixas','variaveis','economias','notas','agenda'];
 var _ultimoSync = {};
+var _ultimoSyncMeta = null;
 var _unsubs = [];
 
 function novoId(){
   return Math.random().toString(36).slice(2,9);
+}
+
+function _metaSnapshot(){
+  return JSON.stringify({
+    planTitle: planTitle,
+    users: users,
+    prefs: getPrefs(),
+    email: (auth.currentUser && auth.currentUser.email) || ''
+  });
 }
 
 function _tirarFoto(){
@@ -2169,6 +2175,7 @@ function _tirarFoto(){
       if (item.id) _ultimoSync[lista][item.id] = JSON.stringify(item);
     });
   });
+  _ultimoSyncMeta = _metaSnapshot();
 }
 
 function saveToFirebase(){
@@ -2209,15 +2216,19 @@ async function sincronizar(){
       });
     });
 
-    batch.set(doc(db,'financas',currentUID), {
-      planTitle: planTitle,
-      users: users,
-      prefs: getPrefs(),
-      email: (auth.currentUser && auth.currentUser.email) || '',
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    var metaJson = _metaSnapshot();
+    if (metaJson !== _ultimoSyncMeta){
+      batch.set(doc(db,'financas',currentUID), {
+        planTitle: planTitle,
+        users: users,
+        prefs: getPrefs(),
+        email: (auth.currentUser && auth.currentUser.email) || '',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      mudou++;
+    }
 
-    await batch.commit();
+    if (mudou > 0) await batch.commit();
     _tirarFoto();
     setSyncStatus('online', 'Sincronizado ✓');
   } catch(e){
@@ -2441,16 +2452,6 @@ window.saveTitle=function(){
   updateLabel();
   closeModal('title');
   save();
-};
-
-window.copyShareLink=function(){
-  const slug=toSlug(currentWorkspace||planTitle);
-  const url=window.location.origin+window.location.pathname+'?p='+encodeURIComponent(slug);
-  navigator.clipboard.writeText(url).then(()=>{
-    showToast('✅ Link copiado!','ok');
-  }).catch(()=>{
-    prompt('Copie o link abaixo e envie para quem quiser compartilhar:',url);
-  });
 };
 
 // ── USERS ────────────────────────────────────────────────────────────────────
@@ -4628,70 +4629,6 @@ window.saveSettingsTitle = async function() {
     }
   }
 };
-window.savePin = async function() {
-  const val=document.getElementById('settings-pin').value.trim();
-  if(val===''){ 
-    // Remove PIN
-    window._pinHash = null;
-    await saveToFirebaseNow();
-    document.getElementById('pin-status').textContent='🔓 PIN removido';
-    return;
-  }
-  if(val==='****'){ return; }
-  if(!/^[0-9]{4}$/.test(val)){ document.getElementById('pin-status').textContent='⚠️ PIN deve ter 4 números'; return; }
-  window._pinHash = btoa(val); // store as hash
-  await saveToFirebaseNow();
-  document.getElementById('settings-pin').value='****';
-  document.getElementById('pin-status').textContent='🔒 PIN salvo neste dispositivo.';
-};
-
-async function saveToFirebaseNow() {
-  if(!DOC_REF) return;
-  // NÃO incluir DB aqui: os itens já são persistidos nas subcoleções por sincronizar().
-  // Usar merge:true para não sobrescrever/apagar outros campos do documento (ex.: criadoEm).
-  await setDoc(DOC_REF, { planTitle, users, prefs: getPrefs(), email:(auth.currentUser&&auth.currentUser.email)||'', updatedAt: new Date().toISOString() }, { merge: true });
-}
-
-// ── LOCK SCREEN ───────────────────────────────────────────────────────────────
-let _onUnlockCallback = null;
-
-function showLockScreen(onUnlock) {
-  _onUnlockCallback = onUnlock || null;
-  document.getElementById('lock-ws-name').textContent = currentWorkspace || planTitle;
-  document.getElementById('lock-workspace-label').textContent = `PIN para acessar "${currentWorkspace||planTitle}"`;
-  document.getElementById('lock-screen').classList.remove('hidden');
-  [0,1,2,3].forEach(i=>document.getElementById('pin'+i).value='');
-  document.getElementById('lock-err').textContent='';
-  setTimeout(()=>document.getElementById('pin0').focus(), 150);
-}
-
-// Legacy — kept for MutationObserver hook below (no longer used for PIN check)
-function checkAndLock() { /* disabled */ }
-
-window.pinNext=function(idx){
-  const val=document.getElementById('pin'+idx).value;
-  if(val&&idx<3)document.getElementById('pin'+(idx+1)).focus();
-  if(idx===3&&val)checkPin();
-};
-window.checkPin=function(){
-  const senhaEl = document.getElementById('lock-senha');
-  const entered = senhaEl ? senhaEl.value : '';
-  const saved = window._pinHash;
-  // Compare: stored as btoa(senha)
-  if(entered && saved && (btoa(entered) === saved || entered === saved)) {
-    document.getElementById('lock-screen').classList.add('hidden');
-    document.getElementById('lock-err').textContent='';
-    if(senhaEl) senhaEl.value = '';
-    if(_onUnlockCallback){ _onUnlockCallback(); _onUnlockCallback=null; }
-  } else {
-    document.getElementById('lock-err').textContent='❌ Senha incorreta. Tente novamente.';
-    if(senhaEl) { senhaEl.value=''; senhaEl.focus(); }
-  }
-};
-document.addEventListener('keydown',e=>{
-  const lockEl = document.getElementById('lock-screen');
-  if(e.key==='Enter' && lockEl && !lockEl.classList.contains('hidden')) checkPin();
-});
 window.logoutWorkspace=function(){ if(!confirm('Sair desta planilha?'))return; localStorage.removeItem('financas_workspace'); location.reload(); };
 
 // ── ACESSIBILIDADE: ativação por teclado de elementos clicáveis não-<button> ──
@@ -4705,13 +4642,6 @@ document.addEventListener('keydown', function(e){
   e.preventDefault();
   el.click();
 });
-
-// Hook into startFirebase to show lock after connection
-const _origRenderAll = renderAll;
-window.renderAll = function(){ _origRenderAll(); };
-// Override to call checkAndLock after first load
-const origOverlay = document.getElementById('loading-overlay');
-// lock screen watcher disabled
 
 // ── SUMMARY ───────────────────────────────────────────────────────────────────
 window.showSummary=function(type){
@@ -4766,6 +4696,13 @@ window.showSummary=function(type){
 
 // ── USER PILL COLOR CHANGE ────────────────────────────────────────────────────
 // Already handled via users modal — color picker is there
+
+// ── SERVICE WORKER (PWA offline básico) ───────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((e) => console.error('SW register:', e));
+  });
+}
 
 </script>
 
