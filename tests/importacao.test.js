@@ -74,22 +74,33 @@ async function main() {
     const page = await newPage(browser, baseUrl);
     const r = await page.evaluate(() => [
       _parseDataImport('05/03/2026'),
-      _parseDataImport('2026-03-05'),
       _parseDataImport('31/13/2026'),
       _parseDataImport(''),
     ]);
-    assert.deepStrictEqual(r, ['2026-03-05', null, null, null]);
+    assert.deepStrictEqual(r, ['2026-03-05', null, null]);
     await page.close();
   });
 
-  await test('_matchTipo reconhece Receita/Fixa/Variável ignorando acento e caixa', async () => {
+  await test('_parseDataImport também aceita ano com 2 dígitos e formato ISO (AAAA-MM-DD)', async () => {
+    const page = await newPage(browser, baseUrl);
+    const r = await page.evaluate(() => [
+      _parseDataImport('05/03/26'),
+      _parseDataImport('2026-03-05'),
+      _parseDataImport('2026-13-05'),
+    ]);
+    assert.deepStrictEqual(r, ['2026-03-05', '2026-03-05', null]);
+    await page.close();
+  });
+
+  await test('_matchTipo reconhece Receita/Fixa/Variável (ou R/F/V) ignorando acento e caixa', async () => {
     const page = await newPage(browser, baseUrl);
     const r = await page.evaluate(() => [
       _matchTipo('Receita'), _matchTipo('receita'),
       _matchTipo('Fixa'), _matchTipo('variavel'), _matchTipo('Variável'),
+      _matchTipo('R'), _matchTipo('f'), _matchTipo('v'),
       _matchTipo('outra coisa'),
     ]);
-    assert.deepStrictEqual(r, ['receita', 'receita', 'fixa', 'variavel', 'variavel', null]);
+    assert.deepStrictEqual(r, ['receita', 'receita', 'fixa', 'variavel', 'variavel', 'receita', 'fixa', 'variavel', null]);
     await page.close();
   });
 
@@ -233,6 +244,24 @@ async function main() {
     assert.strictEqual(pendentes, 0);
     assert.ok(inicioVisible);
     assert.ok(!previewVisible);
+    await page.close();
+  });
+
+  await test('o modelo baixado (com instruções e exemplos) é lido de volta sem nenhum erro', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('import'));
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(() => baixarModeloImportacao()),
+    ]);
+    const filePath = await download.path();
+    const fs = require('fs');
+    const conteudo = fs.readFileSync(filePath, 'utf-8');
+    const { validos, erros } = await page.evaluate((texto) => processarImportacao(texto), conteudo);
+    assert.strictEqual(erros.length, 0, 'o modelo não deveria conter nenhuma linha com erro');
+    assert.strictEqual(validos.length, 3, 'o modelo traz 3 lançamentos de exemplo (um de cada tipo)');
+    assert.deepStrictEqual(validos.map((v) => v.tipo).sort(), ['fixa', 'receita', 'variavel']);
+    validos.forEach((v) => assert.ok(v.desc.startsWith('Exemplo'), 'os exemplos devem estar marcados como tal na descrição'));
     await page.close();
   });
 
