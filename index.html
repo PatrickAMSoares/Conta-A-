@@ -2727,7 +2727,10 @@ window.openModal=function(n){
     const pv=document.getElementById('v-parc-preview');
     if(pv) pv.textContent='';
     const dt=document.getElementById('v-data');
-    if(dt && !dt.value) dt.value=new Date().toISOString().slice(0,10);
+    if(dt){
+      dt.min=_inicioMesAtualISO();
+      if(!dt.value) dt.value=_hojeISO();
+    }
     renderCartaoOptions();
   }
   if(n==='agenda'){ abrirAgendaModal(); }
@@ -3279,6 +3282,7 @@ window.saveVariavel=function(){
   const cartaoEl = document.getElementById('v-cartao');
   const cartaoId = cartaoEl && cartaoEl.value ? cartaoEl.value : null;
   if(!desc || valor <= 0) return alert('Preencha a descrição e o valor.');
+  if(data < _inicioMesAtualISO()) return alert('Não é possível lançar despesas em meses anteriores ao atual.');
 
   const parcOn = document.getElementById('v-parc') && document.getElementById('v-parc').checked;
 
@@ -3793,6 +3797,10 @@ function _ajustaDiaUtil(iso){
 }
 
 function _hojeISO(){ return _isoDe(new Date()); }
+// Primeiro dia do mês atual real (não o mês sendo visualizado) — usado como
+// limite mínimo para não permitir lançar despesas/parcelas em meses passados.
+function _inicioMesAtualISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01'; }
+function _mesAtualISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function _mesesEntre(y1,m1,y2,m2){ return (y2-y1)*12 + (m2-m1); }
 
 const FREQ_LBL = {1:'Mensal',2:'Bimestral',3:'Trimestral',6:'Semestral',12:'Anual'};
@@ -3888,7 +3896,11 @@ window.abrirAgendaModal = function(){
   ['ag-desc','ag-valor','ag-dia','ag-data','ag-fim'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
   document.getElementById('ag-cat').value = 'outros';
   document.getElementById('ag-freq').value = '1';
-  document.getElementById('ag-inicio').value = cy+'-'+String(cm+1).padStart(2,'0');
+  const agData = document.getElementById('ag-data');
+  if(agData) agData.min = _inicioMesAtualISO();
+  const agInicio = document.getElementById('ag-inicio');
+  agInicio.min = _mesAtualISO();
+  agInicio.value = _mesAtualISO();
   document.getElementById('ag-semfim').checked = true;
   toggleSemFim();
   setTipoAgenda('recorrente');
@@ -3927,12 +3939,14 @@ window.saveAgenda = function(){
   if(tipo === 'unica'){
     const d = document.getElementById('ag-data').value;
     if(!d) return alert('Informe a data do vencimento.');
+    if(!id && d < _inicioMesAtualISO()) return alert('Não é possível agendar pagamentos em meses anteriores ao atual.');
     obj.data = d;
   } else {
     const dia = parseInt(document.getElementById('ag-dia').value) || 0;
     const ini = document.getElementById('ag-inicio').value;
     if(dia < 1 || dia > 31) return alert('Informe um dia entre 1 e 31.');
     if(!ini) return alert('Informe o mês de início.');
+    if(!id && ini < _mesAtualISO()) return alert('Não é possível agendar pagamentos em meses anteriores ao atual.');
     const sem = document.getElementById('ag-semfim').checked;
     const fim = document.getElementById('ag-fim').value;
     if(!sem && fim && fim < ini) return alert('O mês final não pode ser anterior ao inicial.');
