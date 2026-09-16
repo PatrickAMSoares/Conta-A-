@@ -2081,10 +2081,22 @@ window.loginGoogle = async function(){
 window.resetSenha = async function(){
   const email = (document.getElementById('auth-email').value || '').trim();
   if(!email) return authMsg('Digite seu e-mail no campo acima para receber o link.');
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return authMsg('E-mail inválido.');
   authBusy(true);
   try{
+    // Se a conta existir e usar só login com Google, não há senha para redefinir —
+    // avisamos isso em vez de dizer que um e-mail foi enviado (não seria verdade).
+    // Observação: em projetos com "proteção contra enumeração de e-mail" ativada no
+    // Firebase, esta consulta sempre retorna vazio (por segurança), e o fluxo cai
+    // normalmente no envio abaixo — sem regressão nesse caso.
+    const metodos = await auth.fetchSignInMethodsForEmail(email).catch(()=>[]);
+    if(metodos.length && !metodos.includes('password')){
+      authMsg('Essa conta usa login com Google — não há senha para redefinir. Use "Continuar com Google".');
+      authBusy(false);
+      return;
+    }
     await auth.sendPasswordResetEmail(email);
-    authMsg('✅ Link de redefinição enviado. Verifique sua caixa de entrada e o spam.', true);
+    authMsg('✅ Se este e-mail tiver uma conta, o link de redefinição foi enviado. Verifique também o spam.', true);
   } catch(e){
     authMsg(authErrMsg(e));
   }
