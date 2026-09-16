@@ -407,9 +407,9 @@ body{line-height:1.45;}
   -webkit-backdrop-filter:saturate(160%) blur(10px);
 }
 .logo-text{letter-spacing:-.1px;}
-#theme-toggle-btn, .topbar-right > button{transition:background .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease);}
-#theme-toggle-btn:hover, .topbar-right > button:hover{border-color:var(--accent);transform:translateY(-1px);}
-#theme-toggle-btn:active, .topbar-right > button:active{transform:translateY(0) scale(.96);}
+.topbar-right > button{transition:background .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease);}
+.topbar-right > button:hover{border-color:var(--accent);transform:translateY(-1px);}
+.topbar-right > button:active{transform:translateY(0) scale(.96);}
 .month-sel{transition:border-color .18s var(--ease);}
 .month-sel:hover{border-color:rgba(181,214,61,.4);}
 
@@ -1126,7 +1126,6 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   </div>
   <div class="topbar-right">
     <div class="user-pills" id="user-pills" style="display:none"></div>
-    <button id="theme-toggle-btn" onclick="toggleThemeMode()" title="Alternar tema claro/escuro" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:16px;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">🌙</button>
     <button onclick="openModal('settings')" title="Configurações" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:16px;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">⚙️</button>
     <div class="month-sel">
       <button onclick="changeMonth(-1)">‹</button>
@@ -1892,7 +1891,6 @@ window.HERO_ICONS_POS = [
   { id:'lista_pos', label:'Checklist', src:'./icons/lista_pos.png' },
   { id:'saco_pos', label:'Saco de dinheiro', src:'./icons/saco_pos.png' },
   { id:'grafico_pos', label:'Gráfico subindo', src:'./icons/grafico_pos.png' },
-  { id:'casal_pos', label:'Casal feliz', src:'./icons/casal_pos.png' },
 ];
 window.HERO_ICONS_NEG = [
   { id:'svg_neg', label:'Porquinho SVG', src:null, svg:true },
@@ -1904,7 +1902,6 @@ window.HERO_ICONS_NEG = [
   { id:'alerta_neg', label:'Alerta de dívida', src:'./icons/alerta_neg.png' },
   { id:'saco_neg', label:'Dívida', src:'./icons/saco_neg.png' },
   { id:'casa_neg', label:'Casa em risco', src:'./icons/casa_neg.png' },
-  { id:'casal_neg', label:'Casal preocupado', src:'./icons/casal_neg.png' },
 ];
 window.SELECTED_POS = localStorage.getItem('financas_icon_pos') || 'svg_pos';
 window.SELECTED_NEG = localStorage.getItem('financas_icon_neg') || 'svg_neg';
@@ -2203,7 +2200,6 @@ function applyPrefs(prefs) {
   if (prefs.theme === 'light') document.documentElement.classList.add('light');
   else document.documentElement.classList.remove('light');
   localStorage.setItem('financas_tema', prefs.theme || 'dark');
-  updateThemeToggleBtn();
   updateTemaButtons();
   if (prefs.iconPos){ window.SELECTED_POS = prefs.iconPos; localStorage.setItem('financas_icon_pos', prefs.iconPos); }
   if (prefs.iconNeg){ window.SELECTED_NEG = prefs.iconNeg; localStorage.setItem('financas_icon_neg', prefs.iconNeg); }
@@ -4690,20 +4686,6 @@ window.setTema = function(tema){
   save();
 };
 
-window.toggleThemeMode = function() {
-  const isLight = document.documentElement.classList.contains('light');
-  // Chama setTema que já cuida de tudo: localStorage + Firebase + botões
-  setTema(isLight ? 'dark' : 'light');
-};
-
-function updateThemeToggleBtn() {
-  const btn = document.getElementById('theme-toggle-btn');
-  if(!btn) return;
-  const isLight = document.documentElement.classList.contains('light');
-  btn.textContent = isLight ? '🌙' : '☀️';
-  btn.title = isLight ? 'Mudar para modo escuro' : 'Mudar para modo claro';
-}
-
 // Restore saved theme mode on load (fallback rápido antes do Firebase)
 (function(){
   const mode = localStorage.getItem('financas_tema') || localStorage.getItem('financas_theme_mode');
@@ -4713,7 +4695,6 @@ function updateThemeToggleBtn() {
   const ineg = localStorage.getItem('financas_icon_neg');
   if(ip) window.SELECTED_POS = ip;
   if(ineg) window.SELECTED_NEG = ineg;
-  setTimeout(updateThemeToggleBtn, 100);
 })();
 
 // ── SETTINGS MODAL ────────────────────────────────────────────────────────────
