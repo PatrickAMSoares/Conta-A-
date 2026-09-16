@@ -729,33 +729,6 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   #setup-screen .auth-tagline{font-size:23px !important;margin-bottom:14px !important;}
   #setup-screen .auth-desc{font-size:13px !important;margin-top:18px !important;}
 }
-/* ── RODAPÉ ── */
-.app-footer{
-  border-top:1px solid var(--border);
-  background:var(--surface);
-  padding:22px 16px 30px;
-  padding-bottom:max(30px,env(safe-area-inset-bottom));
-  margin-top:34px;
-}
-.footer-inner{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:14px;flex-wrap:wrap;max-width:1400px;margin:0 auto;
-}
-.footer-txt{font-size:12.5px;color:var(--muted);}
-.footer-btn{
-  background:var(--surface2);border:1px solid var(--border);color:var(--text);
-  font-size:13px;font-weight:600;font-family:'Inter',sans-serif;
-  padding:10px 20px;border-radius:999px;cursor:pointer;
-  transition:border-color .18s,background .18s,transform .12s;
-}
-.footer-btn:hover{border-color:var(--accent);background:var(--surface3);transform:translateY(-1px);}
-.footer-btn:active{transform:translateY(0) scale(.97);}
-@media(max-width:600px){
-  .footer-inner{flex-direction:column;align-items:stretch;text-align:center;}
-  .footer-btn{width:100%;}
-}
-@media(min-width:768px){.app-footer{padding-left:32px;padding-right:32px;}}
-@media(min-width:1024px){.app-footer{padding-left:40px;padding-right:40px;}}
 /* ── BADGE DE PARCELA ── */
 .parc-tag{
   display:inline-block;margin-left:7px;padding:2px 7px;border-radius:6px;
@@ -1323,17 +1296,6 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 
 </div><!-- /main -->
 
-<!-- RODAPÉ -->
-<footer class="app-footer">
-  <div class="footer-inner">
-    <div class="footer-txt">Exporte ou importe seus lançamentos.</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="footer-btn" onclick="openModal('import')">⬆ Importar dados (.csv)</button>
-      <button class="footer-btn" onclick="openModal('export')">⬇ Baixar dados (.txt)</button>
-    </div>
-  </div>
-</footer>
-
 <!-- MODAL TÍTULO -->
 <div class="modal-bg" id="modal-title">
   <div class="modal">
@@ -1687,6 +1649,24 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <span class="settings-chevron">›</span>
       </div>
 
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('import')">
+        <div class="settings-ico" style="background:rgba(234,179,8,.14);color:var(--laranja)">⬆</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Importar dados</div>
+          <div class="settings-row-sub">Traga lançamentos de uma planilha CSV</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('export')">
+        <div class="settings-ico" style="background:rgba(91,156,246,.14);color:var(--azul)">⬇</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Exportar dados</div>
+          <div class="settings-row-sub">Baixe seus lançamentos em .txt</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
       <div class="settings-row clickable settings-danger" role="button" tabindex="0" onclick="logoutApp()" style="border-bottom:none">
         <div class="settings-ico">🚪</div>
         <div class="settings-row-body">
@@ -1740,7 +1720,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 </div>
 
 <!-- MODAL EXPORTAR -->
-<div class="modal-bg" id="modal-export">
+<div class="modal-bg" id="modal-export" style="z-index:10001">
   <div class="modal" style="max-width:380px">
     <h3 style="margin-bottom:6px">⬇ Baixar dados</h3>
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:18px">Escolha o período que deseja exportar.</p>
@@ -1770,7 +1750,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 </div>
 
 <!-- MODAL IMPORTAR DADOS -->
-<div class="modal-bg" id="modal-import">
+<div class="modal-bg" id="modal-import" style="z-index:10001">
   <div class="modal" style="max-width:480px">
     <h3 style="margin-bottom:6px">⬆ Importar dados</h3>
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Traga lançamentos que você já vinha controlando em outro lugar, a partir de uma planilha CSV. Podem ser de qualquer data, inclusive passada.</p>
