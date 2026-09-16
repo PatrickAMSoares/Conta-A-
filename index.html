@@ -1326,8 +1326,11 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 <!-- RODAPÉ -->
 <footer class="app-footer">
   <div class="footer-inner">
-    <div class="footer-txt">Exporte seus lançamentos em um arquivo de texto.</div>
-    <button class="footer-btn" onclick="openModal('export')">⬇ Baixar dados (.txt)</button>
+    <div class="footer-txt">Exporte ou importe seus lançamentos.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="footer-btn" onclick="openModal('import')">⬆ Importar dados (.csv)</button>
+      <button class="footer-btn" onclick="openModal('export')">⬇ Baixar dados (.txt)</button>
+    </div>
   </div>
 </footer>
 
@@ -1766,6 +1769,33 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   </div>
 </div>
 
+<!-- MODAL IMPORTAR DADOS -->
+<div class="modal-bg" id="modal-import">
+  <div class="modal" style="max-width:480px">
+    <h3 style="margin-bottom:6px">⬆ Importar dados</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Traga lançamentos que você já vinha controlando em outro lugar, a partir de uma planilha CSV. Podem ser de qualquer data, inclusive passada.</p>
+
+    <div id="import-step-inicio">
+      <button class="btn-cancel" style="width:100%;margin-bottom:14px" onclick="baixarModeloImportacao()">⬇ Baixar modelo em branco (.csv)</button>
+      <div class="fr">
+        <label>Selecione o arquivo preenchido</label>
+        <input type="file" id="import-file" accept=".csv,text/csv" onchange="handleImportFile(event)">
+      </div>
+      <div id="import-msg" style="font-size:12.5px;color:var(--muted);margin-top:8px"></div>
+    </div>
+
+    <div id="import-step-preview" style="display:none">
+      <div id="import-preview-summary" style="font-size:13px;margin-bottom:10px"></div>
+      <div id="import-preview-erros" style="font-size:12px;color:#f87171;max-height:160px;overflow-y:auto;line-height:1.6"></div>
+    </div>
+
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn-cancel" onclick="closeModal('import')">Fechar</button>
+      <button class="btn-add" id="import-btn-confirmar" style="display:none" onclick="confirmarImportacao()">Confirmar importação</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL FECHAR MÊS -->
 <div class="modal-bg" id="modal-fechar">
   <div class="modal" style="max-width:400px">
@@ -2137,6 +2167,7 @@ let cartoes = [];
 const DB={ganhos:[],fixas:[],variaveis:[],economias:[],notas:[],agenda:[]};
 let isSaving=false;
 let saveTimeout=null;
+let _importPendentes = [];
 
 let DOC_REF = null;
 let currentWorkspace = '';
@@ -2754,6 +2785,7 @@ window.openModal=function(n){
   if(n==='popup-icones'){
     requestAnimationFrame(()=>requestAnimationFrame(renderIconeOpcoes));
   }
+  if(n==='import'){ resetImportModal(); }
 };
 window.closeModal=function(n){
   const el=document.getElementById('modal-'+n);
@@ -4721,6 +4753,231 @@ window.exportTXT = function(escopo){
     showToast('⚠️ Não foi possível gerar o arquivo.', 'err');
   }
 };
+
+// ── IMPORTAÇÃO DE DADOS (CSV) ────────────────────────────────────────────────
+// Deixa um usuário novo trazer lançamentos que já controlava em outro lugar.
+// Diferente do lançamento manual, a importação aceita datas passadas de
+// propósito — o objetivo é justamente trazer o histórico anterior.
+
+function _parseCSV(text){
+  text = String(text||'').replace(/^﻿/, '');
+  const linhasBrutas = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '' && !l.trim().startsWith('#'));
+  if(!linhasBrutas.length) return [];
+  const delim = (linhasBrutas[0].split(';').length > linhasBrutas[0].split(',').length) ? ';' : ',';
+  function parseLinha(linha){
+    const campos = [];
+    let atual = '', dentroAspas = false;
+    for(let i=0;i<linha.length;i++){
+      const c = linha[i];
+      if(c === '"'){
+        if(dentroAspas && linha[i+1] === '"'){ atual+='"'; i++; }
+        else dentroAspas = !dentroAspas;
+      } else if(c === delim && !dentroAspas){
+        campos.push(atual); atual='';
+      } else atual += c;
+    }
+    campos.push(atual);
+    return campos.map(c=>c.trim());
+  }
+  return linhasBrutas.map(parseLinha);
+}
+
+function _parseValorImport(str){
+  if(!str) return NaN;
+  str = String(str).trim().replace(/[^\d.,-]/g,'');
+  if(str.includes(',') && str.includes('.')){
+    str = str.replace(/\./g,'').replace(',', '.');
+  } else if(str.includes(',')){
+    str = str.replace(',', '.');
+  }
+  return parseFloat(str);
+}
+
+function _parseDataImport(str){
+  const m = String(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  const d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
+  if(mo<1||mo>12||d<1||d>31) return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+
+function _semAcento(str){
+  return String(str||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+
+function _matchTipo(str){
+  const s = _semAcento(str);
+  if(s.startsWith('receita') || s==='ganho') return 'receita';
+  if(s.startsWith('fixa')) return 'fixa';
+  if(s.startsWith('vari')) return 'variavel';
+  return null;
+}
+
+function _matchStatus(str, tipo){
+  const s = _semAcento(str);
+  if(tipo==='receita'){
+    if(s.startsWith('receb')) return 'Recebido';
+    return 'A receber';
+  }
+  if(s.startsWith('pago')) return 'Pago';
+  if(s.startsWith('atras')) return 'Em atraso';
+  return 'A pagar';
+}
+
+function _matchCategoria(str){
+  const s = _semAcento(str).replace(/[^a-z0-9]/g,'');
+  if(!s) return 'outros';
+  const achou = CAT_OPTS.find(c=>{
+    const v = c.v;
+    const l = _semAcento(c.l).replace(/[^a-z0-9]/g,'');
+    return v===s || l===s || l.indexOf(s)>-1 || s.indexOf(v)>-1;
+  });
+  return achou ? achou.v : 'outros';
+}
+
+function processarImportacao(texto){
+  const linhas = _parseCSV(texto);
+  if(linhas.length < 2) return { validos: [], erros: [{linha:0, motivo:'Arquivo vazio ou sem linhas de dados.'}] };
+  const dados = linhas.slice(1);
+  const validos = [], erros = [];
+  dados.forEach((campos, idx) => {
+    const numLinha = idx + 2;
+    if(campos.every(c=>!c)) return;
+    const [tipoStr, desc, catStr, valorStr, dataStr, statusStr] = campos;
+    const tipo = _matchTipo(tipoStr);
+    if(!tipo){ erros.push({linha:numLinha, motivo:'Tipo não reconhecido ("'+(tipoStr||'')+'"). Use Receita, Fixa ou Variável.'}); return; }
+    const descricao = (desc||'').trim();
+    if(!descricao){ erros.push({linha:numLinha, motivo:'Descrição em branco.'}); return; }
+    const valor = _parseValorImport(valorStr);
+    if(!(valor>0)){ erros.push({linha:numLinha, motivo:'Valor inválido ("'+(valorStr||'')+'").'}); return; }
+    const dataISO = _parseDataImport(dataStr);
+    if(!dataISO){ erros.push({linha:numLinha, motivo:'Data inválida ("'+(dataStr||'')+'"). Use o formato DD/MM/AAAA.'}); return; }
+    const [y,m,d] = dataISO.split('-').map(Number);
+    const status = _matchStatus(statusStr, tipo);
+    const item = { tipo, desc: descricao, valor, data: dataISO, m: m-1, y, status };
+    if(tipo!=='receita') item.cat = _matchCategoria(catStr);
+    if(tipo==='fixa') item.venc = d;
+    validos.push(item);
+  });
+  return { validos, erros };
+}
+
+window.baixarModeloImportacao = function(){
+  const linhas = [
+    'Tipo;Descricao;Categoria;Valor;Data;Status',
+    '# Preencha uma linha por lançamento abaixo e apague estas linhas de instrução (que começam com #).',
+    '# Tipo: Receita, Fixa ou Variável.',
+    '# Categoria (só para Fixa e Variável): Casa, Carro, Educação, Saúde, MEI, Mercado, Compras, Seguro ou Outros.',
+    '# Valor: só números, ex. 150,00',
+    '# Data no formato DD/MM/AAAA — pode ser de qualquer mês, inclusive passado.',
+    '# Status: A pagar, Pago ou Em atraso (Fixa/Variável) — A receber ou Recebido (Receita).',
+    'Variável;Mercado;Mercado;150,00;05/03/2026;Pago',
+    'Fixa;Aluguel;Casa;1200,00;10/03/2026;Pago',
+    'Receita;Salário;;5000,00;05/03/2026;Recebido'
+  ];
+  try{
+    const blob = new Blob(['﻿' + linhas.join('\r\n')], {type:'text/csv;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'modelo-importacao-contaai.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  } catch(e){
+    console.error('Erro ao gerar modelo:', e);
+    showToast('⚠️ Não foi possível gerar o modelo.', 'err');
+  }
+};
+
+window.handleImportFile = function(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  const msg = document.getElementById('import-msg');
+  if(msg) msg.textContent = 'Lendo arquivo...';
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const { validos, erros } = processarImportacao(e.target.result);
+    _importPendentes = validos;
+    renderImportPreview(validos, erros);
+  };
+  reader.onerror = function(){
+    if(msg) msg.textContent = '⚠️ Não foi possível ler o arquivo.';
+  };
+  reader.readAsText(file, 'UTF-8');
+};
+
+function renderImportPreview(validos, erros){
+  const inicio = document.getElementById('import-step-inicio');
+  const preview = document.getElementById('import-step-preview');
+  const summary = document.getElementById('import-preview-summary');
+  const errosEl = document.getElementById('import-preview-erros');
+  const btnConfirmar = document.getElementById('import-btn-confirmar');
+  if(inicio) inicio.style.display = 'none';
+  if(preview) preview.style.display = 'block';
+
+  const nG = validos.filter(v=>v.tipo==='receita').length;
+  const nF = validos.filter(v=>v.tipo==='fixa').length;
+  const nV = validos.filter(v=>v.tipo==='variavel').length;
+
+  if(summary){
+    if(validos.length){
+      summary.innerHTML = `✅ ${validos.length} lançamento(s) prontos para importar: ${nG} receita(s), ${nF} despesa(s) fixa(s), ${nV} despesa(s) variável(is).`;
+    } else {
+      summary.innerHTML = '⚠️ Nenhum lançamento válido encontrado no arquivo.';
+    }
+  }
+
+  if(errosEl){
+    if(erros.length){
+      errosEl.innerHTML = '<b>' + erros.length + ' linha(s) com problema (não serão importadas):</b><br>' +
+        erros.map(e => 'Linha ' + e.linha + ': ' + _esc(e.motivo)).join('<br>');
+    } else {
+      errosEl.innerHTML = '';
+    }
+  }
+
+  if(btnConfirmar) btnConfirmar.style.display = validos.length ? 'inline-block' : 'none';
+}
+
+window.confirmarImportacao = function(){
+  if(!_importPendentes || !_importPendentes.length) return;
+  const who = currentUser || 'Eu';
+  const whoId = currentUserId();
+  let nG=0, nF=0, nV=0;
+  _importPendentes.forEach(item=>{
+    if(item.tipo==='receita'){
+      DB.ganhos.push({ id:uid(), desc:item.desc, valor:item.valor, status:item.status,
+        forma:'conta', pessoa:who, who, whoId, m:item.m, y:item.y });
+      nG++;
+    } else if(item.tipo==='fixa'){
+      DB.fixas.push({ id:uid(), desc:item.desc, cat:item.cat, valor:item.valor, venc:item.venc,
+        status:item.status, who, whoId, m:item.m, y:item.y });
+      nF++;
+    } else {
+      DB.variaveis.push({ id:uid(), desc:item.desc, cat:item.cat, valor:item.valor, data:item.data,
+        status:item.status, who, whoId, cartaoId:null, m:item.m, y:item.y });
+      nV++;
+    }
+  });
+  _importPendentes = [];
+  closeModal('import');
+  renderAll(); save();
+  showToast(`✅ Importado: ${nG} receita(s), ${nF} fixa(s), ${nV} variável(is).`, 'ok');
+};
+
+function resetImportModal(){
+  _importPendentes = [];
+  const file = document.getElementById('import-file');
+  if(file) file.value = '';
+  const inicio = document.getElementById('import-step-inicio');
+  const preview = document.getElementById('import-step-preview');
+  if(inicio) inicio.style.display = 'block';
+  if(preview) preview.style.display = 'none';
+  const msg = document.getElementById('import-msg');
+  if(msg) msg.textContent = '';
+  const btnConfirmar = document.getElementById('import-btn-confirmar');
+  if(btnConfirmar) btnConfirmar.style.display = 'none';
+}
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 const now = new Date();
