@@ -200,7 +200,6 @@ tbody td{padding:10px 13px;vertical-align:middle;}
 /* INLINE EDIT */
 .editable{cursor:pointer;border-radius:6px;padding:3px 5px;margin:-3px -5px;transition:background .15s;}
 .editable:hover{background:rgba(181,214,61,.1);outline:1px dashed rgba(181,214,61,.35);}
-.edit-pencil{font-size:10px;opacity:.5;margin-left:5px;vertical-align:middle;}
 .inline-input{background:var(--surface2);border:1.5px solid rgba(181,214,61,.6);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;border-radius:7px;padding:4px 8px;width:100%;min-width:70px;outline:none;}
 .inline-select{background:var(--surface2);border:1.5px solid rgba(181,214,61,.6);color:var(--text);font-size:13px;font-family:'Inter',sans-serif;border-radius:7px;padding:4px 8px;outline:none;}
 
@@ -1189,7 +1188,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 <!-- RECEITAS -->
 <div class="panel" id="panel-ganhos">
   <div class="table-header">
-    <div><div class="table-title">Receitas do mês</div><div class="table-hint">✏️ Toque em qualquer campo para editar</div></div>
+    <div><div class="table-title">Receitas do mês</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('ganhos')">+ Adicionar</button>
   </div>
   <div class="tbl-wrap"><table>
@@ -1203,7 +1202,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 <div class="panel" id="panel-fixas">
   <div id="banner-atrasadas-fixas"></div>
   <div class="table-header">
-    <div><div class="table-title">Despesas Fixas</div><div class="table-hint">✏️ Toque em qualquer campo para editar</div></div>
+    <div><div class="table-title">Despesas Fixas</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('fixas')">+ Adicionar</button>
   </div>
   <div class="tbl-wrap"><table>
@@ -1216,7 +1215,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 <!-- VARIÁVEIS -->
 <div class="panel" id="panel-variaveis">
   <div class="table-header">
-    <div><div class="table-title">Despesas Variáveis</div><div class="table-hint">✏️ Toque em qualquer campo para editar</div></div>
+    <div><div class="table-title">Despesas Variáveis</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('variaveis')">+ Adicionar</button>
   </div>
   <div id="variaveis-por-cartao" style="margin-bottom:12px"></div>
@@ -2625,7 +2624,6 @@ function makeEditable(tdEl,currentVal,type,opts,onSave){
   tdEl.title='Toque para editar';
   tdEl.setAttribute('role','button');
   tdEl.setAttribute('tabindex','0');
-  tdEl.insertAdjacentHTML('beforeend', '<span class="edit-pencil">✏️</span>');
   tdEl.onclick=(e)=>{
     e.stopPropagation();
     if(tdEl.classList.contains('editing'))return;
