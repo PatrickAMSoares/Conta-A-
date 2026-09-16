@@ -3158,11 +3158,14 @@ function checkVencimentos(){
     const venceu=eDoMesAtual&&diaHoje>diaVenc;
     if((venceu||eMesPasado)&&f.status==='A pagar'){f.status='Em atraso';mudou=true;}
   });
+  const hojeMeiaNoite=new Date(anoHoje,mesHoje,diaHoje);
   DB.variaveis.forEach(v=>{
     if(!v.data||v.status==='Pago')return;
     const dataVenc=new Date(v.data+'T00:00:00');
-    const diffDays=(hoje-dataVenc)/(1000*60*60*24);
-    if(diffDays>0&&(v.status==='A pagar'||!v.status)){v.status='Em atraso';mudou=true;}
+    // Comparar só a data (meia-noite de hoje vs. meia-noite do vencimento), não o
+    // horário exato — senão uma despesa que vence hoje já aparecia "Em atraso"
+    // minutos depois da meia-noite, antes mesmo de o dia de vencimento terminar.
+    if(hojeMeiaNoite>dataVenc&&(v.status==='A pagar'||!v.status)){v.status='Em atraso';mudou=true;}
   });
   if(mudou)save();
 }
