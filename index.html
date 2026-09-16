@@ -1776,6 +1776,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Traga lançamentos que você já vinha controlando em outro lugar, a partir de uma planilha CSV. Podem ser de qualquer data, inclusive passada.</p>
 
     <div id="import-step-inicio">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12px;color:var(--muted);line-height:1.75">
+        <div style="color:var(--text);font-weight:700;margin-bottom:4px">O que preencher em cada coluna:</div>
+        <div><b>Tipo</b> — Receita, Fixa ou Variável</div>
+        <div><b>Descrição</b> — nome do lançamento</div>
+        <div><b>Categoria</b> — só para Fixa/Variável: Casa, Carro, Educação, Saúde, MEI, Mercado, Compras, Seguro ou Outros</div>
+        <div><b>Valor</b> — só números, ex. 150,00</div>
+        <div><b>Data</b> — DD/MM/AAAA, de qualquer data (inclusive passada)</div>
+        <div><b>Status</b> — A pagar, Pago ou Em atraso (Fixa/Variável) · A receber ou Recebido (Receita)</div>
+      </div>
       <button class="btn-cancel" style="width:100%;margin-bottom:14px" onclick="baixarModeloImportacao()">⬇ Baixar modelo em branco (.csv)</button>
       <div class="fr">
         <label>Selecione o arquivo preenchido</label>
@@ -4794,11 +4803,23 @@ function _parseValorImport(str){
 }
 
 function _parseDataImport(str){
-  const m = String(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if(!m) return null;
-  const d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
-  if(mo<1||mo>12||d<1||d>31) return null;
-  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  str = String(str||'').trim();
+  // DD/MM/AAAA (formato pedido no modelo) ou DD/MM/AA (ano com 2 dígitos, assume 20AA)
+  let m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if(m){
+    const d = parseInt(m[1],10), mo = parseInt(m[2],10);
+    const y = m[3].length===2 ? 2000+parseInt(m[3],10) : parseInt(m[3],10);
+    if(mo<1||mo>12||d<1||d>31) return null;
+    return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+  // AAAA-MM-DD — algumas planilhas exportam datas nesse formato ao salvar em CSV
+  m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m){
+    const y = parseInt(m[1],10), mo = parseInt(m[2],10), d = parseInt(m[3],10);
+    if(mo<1||mo>12||d<1||d>31) return null;
+    return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  }
+  return null;
 }
 
 function _semAcento(str){
@@ -4807,9 +4828,9 @@ function _semAcento(str){
 
 function _matchTipo(str){
   const s = _semAcento(str);
-  if(s.startsWith('receita') || s==='ganho') return 'receita';
-  if(s.startsWith('fixa')) return 'fixa';
-  if(s.startsWith('vari')) return 'variavel';
+  if(s==='r' || s.startsWith('receita') || s==='ganho') return 'receita';
+  if(s==='f' || s.startsWith('fixa')) return 'fixa';
+  if(s==='v' || s.startsWith('vari')) return 'variavel';
   return null;
 }
 
@@ -4851,7 +4872,7 @@ function processarImportacao(texto){
     const valor = _parseValorImport(valorStr);
     if(!(valor>0)){ erros.push({linha:numLinha, motivo:'Valor inválido ("'+(valorStr||'')+'").'}); return; }
     const dataISO = _parseDataImport(dataStr);
-    if(!dataISO){ erros.push({linha:numLinha, motivo:'Data inválida ("'+(dataStr||'')+'"). Use o formato DD/MM/AAAA.'}); return; }
+    if(!dataISO){ erros.push({linha:numLinha, motivo:'Data inválida ("'+(dataStr||'')+'"). Use o formato DD/MM/AAAA (ex.: 05/03/2026).'}); return; }
     const [y,m,d] = dataISO.split('-').map(Number);
     const status = _matchStatus(statusStr, tipo);
     const item = { tipo, desc: descricao, valor, data: dataISO, m: m-1, y, status };
@@ -4864,16 +4885,17 @@ function processarImportacao(texto){
 
 window.baixarModeloImportacao = function(){
   const linhas = [
-    'Tipo;Descricao;Categoria;Valor;Data;Status',
-    '# Preencha uma linha por lançamento abaixo e apague estas linhas de instrução (que começam com #).',
-    '# Tipo: Receita, Fixa ou Variável.',
-    '# Categoria (só para Fixa e Variável): Casa, Carro, Educação, Saúde, MEI, Mercado, Compras, Seguro ou Outros.',
-    '# Valor: só números, ex. 150,00',
-    '# Data no formato DD/MM/AAAA — pode ser de qualquer mês, inclusive passado.',
-    '# Status: A pagar, Pago ou Em atraso (Fixa/Variável) — A receber ou Recebido (Receita).',
-    'Variável;Mercado;Mercado;150,00;05/03/2026;Pago',
-    'Fixa;Aluguel;Casa;1200,00;10/03/2026;Pago',
-    'Receita;Salário;;5000,00;05/03/2026;Recebido'
+    'Tipo;Descrição;Categoria;Valor;Data;Status',
+    '# COMO PREENCHER (apague estas linhas de instrução, que começam com #, antes de importar):',
+    '# • Tipo: Receita, Fixa ou Variável',
+    '# • Categoria (só para Fixa/Variável): Casa, Carro, Educação, Saúde, MEI, Mercado, Compras, Seguro ou Outros',
+    '# • Valor: só números, ex. 150,00',
+    '# • Data: DD/MM/AAAA — pode ser de qualquer data, inclusive passada',
+    '# • Status: A pagar, Pago ou Em atraso (Fixa/Variável) — A receber ou Recebido (Receita)',
+    '# As 3 linhas abaixo são só exemplos — apague-as e coloque seus lançamentos reais no lugar (adicione quantas linhas quiser).',
+    'Variável;Exemplo - Mercado;Mercado;150,00;05/03/2026;Pago',
+    'Fixa;Exemplo - Aluguel;Casa;1200,00;10/03/2026;Pago',
+    'Receita;Exemplo - Salário;;5000,00;05/03/2026;Recebido'
   ];
   try{
     const blob = new Blob(['﻿' + linhas.join('\r\n')], {type:'text/csv;charset=utf-8'});
