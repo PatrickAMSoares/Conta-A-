@@ -1535,6 +1535,16 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
             </select>
           </div>
         </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="v-parc-andamento" style="width:16px;height:16px;cursor:pointer;accent-color:var(--verde)" onchange="toggleParcAndamento()">
+          <label for="v-parc-andamento" style="font-size:12.5px;font-weight:600;cursor:pointer">Compra já em andamento (parcelas anteriores pagas fora do app)</label>
+        </div>
+        <div id="v-parc-andamento-wrap" style="display:none">
+          <div class="fr" style="margin:0">
+            <label>Em qual parcela você está agora?</label>
+            <input id="v-parc-atual" type="number" min="1" max="72" step="1" value="1" oninput="updateParcPreview()">
+          </div>
+        </div>
         <div id="v-parc-preview" style="font-size:12px;color:var(--verde);font-weight:600;min-height:16px"></div>
       </div>
     </div>
@@ -3231,6 +3241,22 @@ window.toggleParcelas = function(){
   if(on) updateParcPreview();
 };
 
+window.toggleParcAndamento = function(){
+  const on = document.getElementById('v-parc-andamento').checked;
+  const wrap = document.getElementById('v-parc-andamento-wrap');
+  if(wrap) wrap.style.display = on ? 'block' : 'none';
+  updateParcPreview();
+};
+
+// Nº da parcela atual (1 = compra nova, começando do zero — comportamento de sempre).
+// Quando "compra já em andamento" está marcado, é a parcela em que a pessoa está agora;
+// as parcelas anteriores a essa não são recriadas no app, só as restantes.
+function _parcelaAtual(){
+  const on = document.getElementById('v-parc-andamento') && document.getElementById('v-parc-andamento').checked;
+  if(!on) return 1;
+  return parseInt(document.getElementById('v-parc-atual').value) || 0;
+}
+
 window.updateParcPreview = function(){
   const el = document.getElementById('v-parc-preview');
   if(!el) return;
@@ -3247,14 +3273,24 @@ window.updateParcPreview = function(){
     return;
   }
 
+  const parcAtual = _parcelaAtual();
+  if(document.getElementById('v-parc-andamento').checked && (parcAtual < 1 || parcAtual > qtd)){
+    el.textContent = 'A parcela atual deve estar entre 1 e o número de parcelas.';
+    el.style.color = 'var(--muted)';
+    return;
+  }
+
   const porParc = modo === 'total' ? valor / qtd : valor;
   const total   = modo === 'total' ? valor : valor * qtd;
 
   const dataBase = document.getElementById('v-data').value || new Date().toISOString().slice(0,10);
-  const ultima = _addMonthsISO(dataBase, qtd - 1);
+  const restantes = qtd - parcAtual + 1;
+  const ultima = _addMonthsISO(dataBase, restantes - 1);
   const [uy, um] = ultima.split('-').map(Number);
 
-  el.textContent = `✓ ${qtd}x de ${fmt(porParc)} · total ${fmt(total)} · última em ${MN[um-1]}/${uy}`;
+  el.textContent = parcAtual > 1
+    ? `✓ Parcela ${parcAtual}/${qtd} de ${fmt(porParc)} · ${restantes} lançamentos a partir de agora · última em ${MN[um-1]}/${uy}`
+    : `✓ ${qtd}x de ${fmt(porParc)} · total ${fmt(total)} · última em ${MN[um-1]}/${uy}`;
   el.style.color = 'var(--verde)';
 };
 
@@ -3298,30 +3334,40 @@ window.saveVariavel=function(){
   if(qtd < 2) return alert('Informe no mínimo 2 parcelas.');
   if(qtd > 72) return alert('O limite é de 72 parcelas.');
 
-  // Valor por parcela com ajuste de centavos na última
+  // parcAtual=1 é o caso de sempre (compra nova, começa na 1ª parcela).
+  // Quando "compra já em andamento" está marcado, só as parcelas de parcAtual
+  // em diante são criadas — as anteriores já foram pagas fora do app.
+  const parcAtual = _parcelaAtual();
+  if(parcAtual < 1 || parcAtual > qtd) return alert('A parcela atual deve estar entre 1 e o número de parcelas.');
+
+  // Valor por parcela com ajuste de centavos na última — sobre o total original da compra,
+  // mesmo quando só as parcelas restantes são lançadas.
   const totalCent = Math.round((modo === 'total' ? valor : valor * qtd) * 100);
   const baseCent  = Math.floor(totalCent / qtd);
   const restoCent = totalCent - (baseCent * qtd);
 
   const grupo = uid();
-  for(let i = 0; i < qtd; i++){
-    const dataP = _addMonthsISO(data, i);
+  for(let n = parcAtual; n <= qtd; n++){
+    const dataP = _addMonthsISO(data, n - parcAtual);
     const py = Number(dataP.slice(0,4));
     const pm = Number(dataP.slice(5,7)) - 1;
-    const cent = baseCent + (i === qtd - 1 ? restoCent : 0);
+    const cent = baseCent + (n === qtd ? restoCent : 0);
     DB.variaveis.push({
       id:uid(), desc, cat,
       valor: cent / 100,
       data: dataP,
-      status: i === 0 ? status : 'A pagar',
+      status: n === parcAtual ? status : 'A pagar',
       who, whoId, cartaoId, m: pm, y: py,
-      parcGrupo: grupo, parcNum: i + 1, parcTot: qtd
+      parcGrupo: grupo, parcNum: n, parcTot: qtd
     });
   }
 
   _fecharModalVariavel();
   renderAll(); save();
-  showToast(`✅ ${qtd} parcelas de ${fmt(baseCent/100)} lançadas!`, 'ok');
+  const restantes = qtd - parcAtual + 1;
+  showToast(parcAtual > 1
+    ? `✅ ${restantes} parcelas de ${fmt(baseCent/100)} lançadas (a partir da ${parcAtual}/${qtd})!`
+    : `✅ ${qtd} parcelas de ${fmt(baseCent/100)} lançadas!`, 'ok');
 };
 
 function _fecharModalVariavel(){
@@ -3333,6 +3379,12 @@ function _fecharModalVariavel(){
   if(box) box.style.display='none';
   const q=document.getElementById('v-parc-qtd');
   if(q) q.value=2;
+  const andamentoChk=document.getElementById('v-parc-andamento');
+  if(andamentoChk) andamentoChk.checked=false;
+  const andamentoWrap=document.getElementById('v-parc-andamento-wrap');
+  if(andamentoWrap) andamentoWrap.style.display='none';
+  const atual=document.getElementById('v-parc-atual');
+  if(atual) atual.value=1;
   const pv=document.getElementById('v-parc-preview');
   if(pv) pv.textContent='';
 }
