@@ -1,0 +1,28 @@
+name: Avisos de vencimento no Telegram
+
+on:
+  schedule:
+    # 11:00 UTC = 08:00 no horário de Brasília (UTC-3, sem horário de verão)
+    - cron: '0 11 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  enviar-avisos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências do script
+        run: npm install firebase-admin@^12 --no-save
+
+      - name: Enviar avisos
+        run: node scripts/enviar-avisos-telegram.js
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

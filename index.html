@@ -1649,6 +1649,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <span class="settings-chevron">›</span>
       </div>
 
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('telegram')">
+        <div class="settings-ico" style="background:rgba(91,156,246,.14);color:var(--azul)">📲</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Avisos no Telegram</div>
+          <div class="settings-row-sub" id="settings-telegram-sub">Desativado</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
       <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('import')">
         <div class="settings-ico" style="background:rgba(234,179,8,.14);color:var(--laranja)">⬆</div>
         <div class="settings-row-body">
@@ -1680,6 +1689,58 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 
     <div class="modal-btns" style="margin-top:16px">
       <button class="btn-cancel" onclick="closeModal('settings')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVISOS NO TELEGRAM -->
+<div class="modal-bg" id="modal-telegram" style="z-index:10001">
+  <div class="modal" style="max-width:440px">
+    <h3 style="margin-bottom:6px">📲 Avisos no Telegram</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin-bottom:16px">Receba um aviso no Telegram quando uma conta estiver perto de vencer. Seu número de telefone nunca é usado nem fica salvo em lugar nenhum — a ligação com o bot é feita por um código anônimo (chat ID).</p>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <input type="checkbox" id="tg-ativo" style="width:18px;height:18px;cursor:pointer;accent-color:var(--verde)" onchange="toggleTelegramOpts()">
+        <label for="tg-ativo" style="font-size:14px;font-weight:600;cursor:pointer">Ativar avisos no Telegram</label>
+      </div>
+
+      <div id="tg-opts" style="display:none;flex-direction:column;gap:12px">
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          <b style="color:var(--text)">Passo 1 —</b> crie seu bot pessoal (grátis, leva 1 minuto):<br>
+          1. No Telegram, procure por <b>@BotFather</b>.<br>
+          2. Envie <code>/newbot</code> e siga as instruções (escolha um nome e um usuário terminado em "bot").<br>
+          3. O BotFather te dá um <b>token</b> — cole abaixo.
+        </div>
+
+        <div class="fr" style="margin:0">
+          <label>Token do bot (usado só agora — não é salvo)</label>
+          <input id="tg-token" placeholder="Ex: 123456789:AAF...">
+        </div>
+
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+            <b style="color:var(--text)">Passo 2 —</b> abra o seu bot no Telegram e envie qualquer mensagem (ex: "oi"). Depois clique abaixo.
+          </div>
+          <button type="button" class="btn-cancel" style="width:100%" onclick="descobrirChatIdTelegram()">🔎 Buscar meu código de vínculo</button>
+          <div id="tg-status" style="font-size:12px;margin-top:8px"></div>
+        </div>
+
+        <div class="fr" style="margin:0">
+          <label>Código de vínculo (chat ID)</label>
+          <input id="tg-chatid" placeholder="Preenchido automaticamente, ou cole aqui manualmente">
+        </div>
+
+        <div class="fr" style="margin:0">
+          <label>Avisar com quantos dias de antecedência</label>
+          <input id="tg-dias" type="number" min="0" max="15" value="2">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn-cancel" onclick="closeModal('telegram')">Cancelar</button>
+      <button class="btn-add" onclick="salvarTelegram()">Salvar</button>
     </div>
   </div>
 </div>
@@ -2161,6 +2222,14 @@ let _importPendentes = [];
 let DOC_REF = null;
 let currentWorkspace = '';
 
+// Avisos de vencimento no Telegram: o número de telefone nunca é usado —
+// a ligação com o bot é feita por um chat ID, obtido conversando com o
+// bot no próprio Telegram (ver modal-telegram). O envio em si roda fora
+// do app, num script agendado (scripts/enviar-avisos-telegram.js).
+let telegramAtivo = false;
+let telegramChatId = '';
+let telegramDiasAntes = 2;
+
 // ── TOAST ────────────────────────────────────────────────────────────────────
 let _toastTimer = null;
 window.showToast = function(msg, type){
@@ -2187,7 +2256,10 @@ function getPrefs() {
   return {
     theme: document.documentElement.classList.contains('light') ? 'light' : 'dark',
     iconPos: window.SELECTED_POS || 'svg_pos',
-    iconNeg: window.SELECTED_NEG || 'svg_neg'
+    iconNeg: window.SELECTED_NEG || 'svg_neg',
+    telegramAtivo: !!telegramAtivo,
+    telegramChatId: telegramChatId || '',
+    telegramDiasAntes: Number.isFinite(telegramDiasAntes) ? telegramDiasAntes : 2
   };
 }
 
@@ -2233,6 +2305,9 @@ function applyPrefs(prefs) {
   updateTemaButtons();
   if (prefs.iconPos){ window.SELECTED_POS = prefs.iconPos; localStorage.setItem('financas_icon_pos', prefs.iconPos); }
   if (prefs.iconNeg){ window.SELECTED_NEG = prefs.iconNeg; localStorage.setItem('financas_icon_neg', prefs.iconNeg); }
+  telegramAtivo = !!prefs.telegramAtivo;
+  telegramChatId = prefs.telegramChatId || '';
+  telegramDiasAntes = Number.isFinite(prefs.telegramDiasAntes) ? prefs.telegramDiasAntes : 2;
 }
 
 // ── PERSISTÊNCIA ─────────────────────────────────────────────────────────────
@@ -2714,6 +2789,8 @@ function initSettingsModal() {
   if(pe) pe.style.display = 'none';
   const ue = document.getElementById('settings-user-edit');
   if(ue) ue.style.display = 'none';
+  const tgSub = document.getElementById('settings-telegram-sub');
+  if(tgSub) tgSub.textContent = telegramAtivo ? 'Ativado' : 'Desativado';
 }
 
 window.initContaModal = function(){
@@ -2775,6 +2852,7 @@ window.openModal=function(n){
     requestAnimationFrame(()=>requestAnimationFrame(renderIconeOpcoes));
   }
   if(n==='import'){ resetImportModal(); }
+  if(n==='telegram'){ initTelegramModal(); }
 };
 window.closeModal=function(n){
   const el=document.getElementById('modal-'+n);
@@ -4980,6 +5058,84 @@ function resetImportModal(){
   const btnConfirmar = document.getElementById('import-btn-confirmar');
   if(btnConfirmar) btnConfirmar.style.display = 'none';
 }
+
+// ── AVISOS NO TELEGRAM ───────────────────────────────────────────────────────
+function initTelegramModal(){
+  const chk = document.getElementById('tg-ativo');
+  const opts = document.getElementById('tg-opts');
+  const chatid = document.getElementById('tg-chatid');
+  const dias = document.getElementById('tg-dias');
+  const token = document.getElementById('tg-token');
+  const status = document.getElementById('tg-status');
+  if(chk) chk.checked = !!telegramAtivo;
+  if(opts) opts.style.display = telegramAtivo ? 'flex' : 'none';
+  if(chatid) chatid.value = telegramChatId || '';
+  if(dias) dias.value = telegramDiasAntes;
+  if(token) token.value = '';
+  if(status) status.textContent = '';
+}
+
+window.toggleTelegramOpts = function(){
+  const chk = document.getElementById('tg-ativo');
+  const opts = document.getElementById('tg-opts');
+  if(opts) opts.style.display = (chk && chk.checked) ? 'flex' : 'none';
+};
+
+window.descobrirChatIdTelegram = async function(){
+  const tokenEl = document.getElementById('tg-token');
+  const statusEl = document.getElementById('tg-status');
+  const chatEl = document.getElementById('tg-chatid');
+  const token = tokenEl ? tokenEl.value.trim() : '';
+  if(!token){
+    if(statusEl){ statusEl.textContent = '⚠️ Cole o token do bot primeiro.'; statusEl.style.color = 'var(--laranja)'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Buscando...'; statusEl.style.color = 'var(--muted)'; }
+  try{
+    const resp = await fetch('https://api.telegram.org/bot' + encodeURIComponent(token) + '/getUpdates');
+    const json = await resp.json();
+    if(!json.ok) throw new Error(json.description || 'Token inválido.');
+    const updates = json.result || [];
+    if(!updates.length){
+      if(statusEl){ statusEl.textContent = '⚠️ Nenhuma mensagem encontrada. Envie uma mensagem para o bot no Telegram e tente de novo.'; statusEl.style.color = 'var(--laranja)'; }
+      return;
+    }
+    const ultima = updates[updates.length - 1];
+    const chat = (ultima.message && ultima.message.chat) || (ultima.channel_post && ultima.channel_post.chat);
+    if(!chat || !chat.id){
+      if(statusEl){ statusEl.textContent = '⚠️ Não encontramos o código na resposta do Telegram.'; statusEl.style.color = 'var(--laranja)'; }
+      return;
+    }
+    if(chatEl) chatEl.value = String(chat.id);
+    if(statusEl){ statusEl.textContent = '✅ Código encontrado! Confira e clique em Salvar.'; statusEl.style.color = 'var(--verde)'; }
+  } catch(e){
+    console.error('Erro ao buscar chat id do Telegram:', e);
+    if(statusEl){ statusEl.textContent = '⚠️ Não foi possível buscar automaticamente. Confira o token ou preencha o código manualmente.'; statusEl.style.color = 'var(--laranja)'; }
+  } finally {
+    if(tokenEl) tokenEl.value = '';
+  }
+};
+
+window.salvarTelegram = function(){
+  const chk = document.getElementById('tg-ativo');
+  const chatidEl = document.getElementById('tg-chatid');
+  const diasEl = document.getElementById('tg-dias');
+  const ativo = !!(chk && chk.checked);
+  const chatId = (chatidEl && chatidEl.value.trim()) || '';
+  const diasAntes = Math.max(0, Math.min(15, parseInt(diasEl && diasEl.value, 10) || 0));
+
+  if(ativo && !chatId) return alert('Para ativar os avisos, primeiro vincule seu Telegram (Passo 1 e 2 acima).');
+
+  telegramAtivo = ativo;
+  telegramChatId = chatId;
+  telegramDiasAntes = diasAntes;
+
+  closeModal('telegram');
+  const tgSub = document.getElementById('settings-telegram-sub');
+  if(tgSub) tgSub.textContent = telegramAtivo ? 'Ativado' : 'Desativado';
+  save();
+  showToast('✅ Preferências de aviso salvas!', 'ok');
+};
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 const now = new Date();
