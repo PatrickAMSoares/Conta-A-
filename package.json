@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Testes automatizados do Conta Aí. O app em si (index.html) continua sendo puro HTML/CSS/JS estático, sem build — isso serve só para rodar a suíte de testes.",
   "scripts": {
-    "test": "node tests/parcelamento.test.js && node tests/importacao.test.js"
+    "test": "node tests/parcelamento.test.js && node tests/importacao.test.js && node tests/telegram-config.test.js && node tests/vencimentos-telegram.test.js"
   },
   "devDependencies": {
     "playwright": "^1.56.1"
