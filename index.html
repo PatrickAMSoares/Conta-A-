@@ -1334,7 +1334,10 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <h3>Cartões</h3>
     <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Crie cartões para agrupar despesas variáveis por cartão.</p>
     <div id="cartoes-list"></div>
-    <div class="fr" style="margin-top:12px"><label>Nome do cartão</label><input id="new-cartao-name" placeholder="Ex: Nubank, Inter…"></div>
+    <div class="two" style="margin-top:12px">
+      <div class="fr" style="margin:0"><label>Nome do cartão</label><input id="new-cartao-name" placeholder="Ex: Nubank, Inter…"></div>
+      <div class="fr" style="margin:0"><label>Vencimento (dia)</label><input id="new-cartao-venc" type="number" min="1" max="31" placeholder="Ex: 10"></div>
+    </div>
     <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('cartoes')">Fechar</button><button class="btn-add" onclick="addCartao()">Adicionar</button></div>
   </div>
 </div>
@@ -1482,7 +1485,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
       <div class="fr"><label>Data</label><input id="v-data" type="date"></div>
       <div class="fr"><label>Status</label><select id="v-status"><option value="A pagar">A pagar</option><option value="Pago">Pago</option><option value="Em atraso">Em atraso</option></select></div>
     </div>
-    <div class="fr"><label>Cartão</label><select id="v-cartao"></select></div>
+    <div class="fr"><label>Cartão</label><select id="v-cartao" onchange="aplicarVencimentoCartao()"></select></div>
     <!-- PARCELAMENTO -->
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:4px">
       <div style="display:flex;align-items:center;gap:10px">
@@ -2696,8 +2699,16 @@ function renderCartoesList(){
   el.innerHTML=cartoes.length ? cartoes.map((c,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
       <span style="flex:1;font-size:13px">💳 ${_esc(c.nome)}</span>
+      <span style="font-size:12px;color:var(--muted)">Vence dia</span>
+      <span id="cartao-venc-${c.id}" style="font-size:13px;font-weight:600;min-width:22px;text-align:center">${c.venc||'–'}</span>
       <button class="btn-del" onclick="removeCartao(${i})">✕</button>
     </div>`).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Nenhum cartão ainda.</div>';
+  cartoes.forEach(c=>{
+    makeEditable(document.getElementById(`cartao-venc-${c.id}`), c.venc||'', 'number', [], v=>{
+      const dia = parseInt(v, 10);
+      c.venc = (dia>=1 && dia<=31) ? dia : null;
+    });
+  });
 }
 function renderCartaoOptions(){
   const sel=document.getElementById('v-cartao');
@@ -2707,12 +2718,29 @@ function renderCartaoOptions(){
 }
 window.addCartao=function(){
   const nome=document.getElementById('new-cartao-name').value.trim();
-  if(!nome)return;
-  if(!cartoes.find(c=>c.nome===nome)) cartoes.push({id:novoId(),nome});
+  const venc=parseInt(document.getElementById('new-cartao-venc').value, 10);
+  if(!nome) return alert('Informe o nome do cartão.');
+  if(!venc || venc<1 || venc>31) return alert('Informe o dia de vencimento (entre 1 e 31).');
+  if(!cartoes.find(c=>c.nome===nome)) cartoes.push({id:novoId(),nome,venc});
   document.getElementById('new-cartao-name').value='';
+  document.getElementById('new-cartao-venc').value='';
   renderCartoesList();
   renderCartaoOptions();
   save();
+};
+
+// Ao escolher um cartão numa Despesa Variável nova, preenche a Data
+// automaticamente com o vencimento cadastrado para aquele cartão (no mês
+// sendo lançado), pra não precisar digitar a mesma data em toda compra.
+window.aplicarVencimentoCartao=function(){
+  const sel=document.getElementById('v-cartao');
+  const dataEl=document.getElementById('v-data');
+  if(!sel || !dataEl) return;
+  const cartao=cartoes.find(c=>c.id===sel.value);
+  if(!cartao || !cartao.venc) return;
+  const ultimoDia=new Date(cy, cm+1, 0).getDate();
+  const dia=Math.min(cartao.venc, ultimoDia);
+  dataEl.value=cy+'-'+String(cm+1).padStart(2,'0')+'-'+String(dia).padStart(2,'0');
 };
 window.removeCartao=function(i){
   cartoes.splice(i,1);
