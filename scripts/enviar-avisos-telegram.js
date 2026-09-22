@@ -71,6 +71,35 @@ function coletarAvisos(fixas, variaveis, hoje, diasAntes) {
   return avisos;
 }
 
+// Diagnóstico: não decide nada, só ajuda a entender por que "avisos" deu
+// zero — sem imprimir descrição, valor nem data completa de nada.
+function diagnosticar(fixas, variaveis, hoje) {
+  let menorDiffAbs = null;
+  let semData = 0;
+  let totalNaoPago = 0;
+
+  function registra(diff) {
+    if (menorDiffAbs === null || Math.abs(diff) < Math.abs(menorDiffAbs)) menorDiffAbs = diff;
+  }
+
+  fixas.forEach((item) => {
+    if (item.status === 'Pago') return;
+    totalNaoPago++;
+    const dataISO = dataFixaISO(item);
+    if (!dataISO) { semData++; return; }
+    registra(diasEntre(hoje, dataISO));
+  });
+
+  variaveis.forEach((item) => {
+    if (item.status === 'Pago') return;
+    totalNaoPago++;
+    if (!item.data) { semData++; return; }
+    registra(diasEntre(hoje, item.data));
+  });
+
+  return { menorDiffAbs, semData, totalNaoPago };
+}
+
 function montarMensagem(titulo, avisos) {
   const linhas = avisos.map((a) => {
     const [, m, dd] = a.data.split('-');
@@ -112,7 +141,17 @@ async function main() {
       diasAntes
     );
     console.log(`  Avisos encontrados para esse plano: ${avisos.length}.`);
-    if (!avisos.length) continue;
+    if (!avisos.length) {
+      const diag = diagnosticar(
+        fixasSnap.docs.map((d) => d.data()),
+        variaveisSnap.docs.map((d) => d.data()),
+        hoje
+      );
+      console.log(
+        `  Diagnóstico: ${diag.totalNaoPago} lançamento(s) não pagos, ${diag.semData} sem data válida, menor diferença de dias até um vencimento = ${diag.menorDiffAbs}.`
+      );
+      continue;
+    }
 
     const texto = montarMensagem(plano.planTitle || 'Conta Aí', avisos);
     const ok = await enviarMensagemTelegram(prefs.telegramChatId, texto);
