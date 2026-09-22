@@ -188,6 +188,9 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-sm:hover{background:var(--surface3);}
 .btn-del{background:transparent;color:#f87171;font-size:11px;border:1px solid rgba(248,113,113,.3);border-radius:7px;padding:4px 8px;cursor:pointer;}
 .btn-del:hover{background:rgba(248,113,113,.1);}
+.btn-ag{background:transparent;color:var(--azul);font-size:11px;border:1px solid rgba(91,156,246,.3);border-radius:7px;padding:4px 8px;cursor:pointer;margin-right:4px;}
+.btn-ag:hover{background:rgba(91,156,246,.1);}
+.btn-ag.linked{color:var(--verde);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
 
 .tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:420px;}
@@ -3233,7 +3236,18 @@ window.saveFixa=function(){
   ['f-desc','f-valor','f-venc'].forEach(i=>document.getElementById(i).value='');
   renderAll();save();
 };
-window.delFixa=function(id){if(!confirm('Remover?'))return;DB.fixas=DB.fixas.filter(x=>x.id!==id);renderAll();save();};
+// Some o item da Agenda que foi criado a partir de uma Despesa Fixa/Variável
+// (via toggleAgendaLink), se houver — pra não deixar um item órfão lá.
+function _removerAgendaVinculada(item){
+  if(item && item.agendaId) DB.agenda = (DB.agenda||[]).filter(a=>a.id!==item.agendaId);
+}
+
+window.delFixa=function(id){
+  if(!confirm('Remover?'))return;
+  _removerAgendaVinculada(DB.fixas.find(x=>x.id===id));
+  DB.fixas=DB.fixas.filter(x=>x.id!==id);
+  renderAll();save();
+};
 window.cycleFStatus=function(id){
   const f=DB.fixas.find(x=>x.id===id);if(!f)return;
   if(f.status==='Em atraso'){f.status='Pago';f.dataPago=new Date().toLocaleDateString('pt-BR');}
@@ -3325,7 +3339,10 @@ function renderFixas(){
     <td id="f-venc-${f.id}" style="color:var(--muted);font-size:12px">${f.venc?'Dia '+f.venc:'–'}</td>
     <td style="font-size:12px;color:${f.dataPago?'#86efac':'var(--muted2)'}">${f.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[f.status]||''}" role="button" tabindex="0" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
-    <td><button class="btn-del" onclick="delFixa('${f.id}')">✕</button></td>
+    <td>
+      <button class="btn-ag ${f.agendaId?'linked':''}" onclick="toggleAgendaLink('fixa','${f.id}')" title="${f.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${f.agendaId?'📆 ✓':'📆'}</button>
+      <button class="btn-del" onclick="delFixa('${f.id}')">✕</button>
+    </td>
   </tr>`).join('');
   items.forEach(f=>{
     makeEditable(document.getElementById(`f-cat-${f.id}`),f.cat,'select',catOpts,v=>{f.cat=v;});
@@ -3512,18 +3529,21 @@ window.delVariavel=function(id){
         `Cancelar = remover somente esta parcela`;
       if(confirm(msg)){
         const ids = new Set(futuras.map(x=>x.id));
+        futuras.forEach(_removerAgendaVinculada);
         DB.variaveis = DB.variaveis.filter(x=>!ids.has(x.id));
         renderAll(); save();
         showToast(`🗑️ ${futuras.length} parcelas removidas.`, 'ok');
         return;
       }
     } else if(!confirm('Remover esta parcela?')) return;
+    _removerAgendaVinculada(v);
     DB.variaveis = DB.variaveis.filter(x=>x.id!==id);
     renderAll(); save();
     return;
   }
 
   if(!confirm('Remover?')) return;
+  _removerAgendaVinculada(v);
   DB.variaveis=DB.variaveis.filter(x=>x.id!==id);
   renderAll();save();
 };
@@ -3547,7 +3567,10 @@ function renderVariaveis(){
     <td id="v-val-${v.id}" style="font-weight:700">${fmt(v.valor)}</td>
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
-    <td><button class="btn-del" onclick="delVariavel('${v.id}')">✕</button></td>
+    <td>
+      <button class="btn-ag ${v.agendaId?'linked':''}" onclick="toggleAgendaLink('variavel','${v.id}')" title="${v.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${v.agendaId?'📆 ✓':'📆'}</button>
+      <button class="btn-del" onclick="delVariavel('${v.id}')">✕</button>
+    </td>
   </tr>`;}).join('');
   items.forEach(v=>{
     makeEditable(document.getElementById(`v-desc-${v.id}`),v.desc,'text',[],val=>{v.desc=val||v.desc;});
@@ -4126,6 +4149,46 @@ window.saveAgenda = function(){
   renderAll(); save();
 };
 
+// Cria (ou remove) um item "único" na Agenda a partir de uma Despesa Fixa
+// ou Variável, pra o usuário não precisar cadastrar o mesmo vencimento
+// duas vezes. É uma cópia independente — editar a despesa depois não
+// atualiza o item da Agenda automaticamente (e vice-versa).
+window.toggleAgendaLink = function(tipo, id){
+  const lista = tipo === 'fixa' ? DB.fixas : DB.variaveis;
+  const item = lista.find(x => x.id === id);
+  if(!item) return;
+
+  if(item.agendaId){
+    DB.agenda = (DB.agenda||[]).filter(a => a.id !== item.agendaId);
+    delete item.agendaId;
+    renderAll(); save();
+    showToast('Removida da Agenda.', 'ok');
+    return;
+  }
+
+  let dataISO;
+  if(tipo === 'fixa'){
+    const dia = parseInt(item.venc, 10);
+    if(!dia) return alert('Preencha o dia de vencimento antes de adicionar à Agenda.');
+    dataISO = item.y + '-' + String(item.m + 1).padStart(2,'0') + '-' + String(dia).padStart(2,'0');
+  } else {
+    if(!item.data) return alert('Preencha a data antes de adicionar à Agenda.');
+    dataISO = item.data;
+  }
+
+  if(!Array.isArray(DB.agenda)) DB.agenda = [];
+  const novo = {
+    id: uid(), tipo: 'unica', desc: item.desc, cat: item.cat, valor: item.valor,
+    data: dataISO, who: item.who || currentUser || 'Eu', whoId: item.whoId || currentUserId(),
+    pagos: {}
+  };
+  DB.agenda.push(novo);
+  item.agendaId = novo.id;
+
+  renderAll(); save();
+  showToast('✅ Adicionada à Agenda!', 'ok');
+};
+
 window.togglePagoAgenda = function(id, chave){
   const a = (DB.agenda||[]).find(x=>x.id===id);
   if(!a) return;
@@ -4162,6 +4225,11 @@ window.delAgenda = function(id){
     ? `Excluir "${a.desc}"?\n\nTodas as ocorrências futuras e passadas serão removidas da agenda.`
     : `Excluir "${a.desc}" da agenda?`;
   if(!confirm(msg)) return;
+  // Se este item veio de uma Despesa Fixa/Variável (botão 📆), desfaz o vínculo lá também.
+  const origemF = DB.fixas.find(x=>x.agendaId===id);
+  if(origemF) delete origemF.agendaId;
+  const origemV = DB.variaveis.find(x=>x.agendaId===id);
+  if(origemV) delete origemV.agendaId;
   DB.agenda = DB.agenda.filter(x=>x.id!==id);
   renderAll(); save();
   showToast('🗑️ Agendamento removido.','ok');
