@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Envia avisos no Telegram para despesas (Fixas e Variáveis) perto de
- * vencer. Roda agendado via GitHub Actions (.github/workflows/
+ * Envia avisos no Telegram para despesas (Fixas, Variáveis e Agenda) perto
+ * de vencer. Roda agendado via GitHub Actions (.github/workflows/
  * avisos-telegram.yml) — o app em si (index.html) é só HTML/CSS/JS
  * estático, sem servidor, então esse script é quem efetivamente dispara
  * as mensagens fora do navegador do usuário.
@@ -16,11 +16,12 @@
  *
  * Não lê nem grava nenhum dado além do necessário para montar os avisos:
  * só lê financas/{uid} (para prefs.telegram*) e as subcoleções fixas/
- * variaveis de cada plano. Não altera nenhum lançamento existente.
+ * variaveis/agenda de cada plano. Não altera nenhum lançamento existente.
  */
 
 const admin = require('firebase-admin');
 const { diasEntre, dataFixaISO, itemPrecisaAviso } = require('./lib/vencimentos');
+const { ocorrenciasParaAviso } = require('./lib/agenda');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -51,7 +52,7 @@ async function enviarMensagemTelegram(chatId, texto) {
   return json.ok;
 }
 
-function coletarAvisos(fixas, variaveis, hoje, diasAntes) {
+function coletarAvisos(fixas, variaveis, agenda, hoje, diasAntes) {
   const avisos = [];
 
   fixas.forEach((item) => {
@@ -67,6 +68,8 @@ function coletarAvisos(fixas, variaveis, hoje, diasAntes) {
     const diff = diasEntre(hoje, item.data);
     if (itemPrecisaAviso(diff, diasAntes)) avisos.push({ desc: item.desc, valor: item.valor, data: item.data, diff });
   });
+
+  avisos.push(...ocorrenciasParaAviso(agenda, hoje, diasAntes, diasEntre, itemPrecisaAviso));
 
   return avisos;
 }
@@ -100,6 +103,15 @@ function diagnosticar(fixas, variaveis, hoje) {
   return { menorDiffAbs, semData, totalNaoPago };
 }
 
+// Idem, mas cobrindo a chance de zero avisos vir de *só* ter olhado
+// fixas/variáveis (a Agenda é um outro formato: ocorrências calculadas na
+// hora, não lançamentos avulsos).
+function diagnosticarAgenda(agenda) {
+  const unicas = agenda.filter((a) => a.tipo === 'unica').length;
+  const recorrentes = agenda.filter((a) => a.tipo !== 'unica').length;
+  return { total: agenda.length, unicas, recorrentes };
+}
+
 function montarMensagem(titulo, avisos) {
   const linhas = avisos.map((a) => {
     const [, m, dd] = a.data.split('-');
@@ -128,15 +140,20 @@ async function main() {
     if (!prefs.telegramAtivo || !prefs.telegramChatId) continue;
     const diasAntes = Number.isFinite(prefs.telegramDiasAntes) ? prefs.telegramDiasAntes : 2;
 
-    const [fixasSnap, variaveisSnap] = await Promise.all([
+    const [fixasSnap, variaveisSnap, agendaSnap] = await Promise.all([
       planoDoc.ref.collection('fixas').get(),
       planoDoc.ref.collection('variaveis').get(),
+      planoDoc.ref.collection('agenda').get(),
     ]);
-    console.log(`  Fixas: ${fixasSnap.size} lançamento(s). Variáveis: ${variaveisSnap.size} lançamento(s).`);
+    console.log(
+      `  Fixas: ${fixasSnap.size} lançamento(s). Variáveis: ${variaveisSnap.size} lançamento(s). Agenda: ${agendaSnap.size} item(ns).`
+    );
 
+    const agendaItems = agendaSnap.docs.map((d) => d.data());
     const avisos = coletarAvisos(
       fixasSnap.docs.map((d) => d.data()),
       variaveisSnap.docs.map((d) => d.data()),
+      agendaItems,
       hoje,
       diasAntes
     );
@@ -147,8 +164,9 @@ async function main() {
         variaveisSnap.docs.map((d) => d.data()),
         hoje
       );
+      const diagAg = diagnosticarAgenda(agendaItems);
       console.log(
-        `  Diagnóstico: ${diag.totalNaoPago} lançamento(s) não pagos, ${diag.semData} sem data válida, menor diferença de dias até um vencimento = ${diag.menorDiffAbs}.`
+        `  Diagnóstico: ${diag.totalNaoPago} lançamento(s) não pagos, ${diag.semData} sem data válida, menor diferença de dias até um vencimento = ${diag.menorDiffAbs}. Agenda: ${diagAg.total} item(ns) (${diagAg.unicas} única(s), ${diagAg.recorrentes} recorrente(s)).`
       );
       continue;
     }
