@@ -4244,26 +4244,6 @@ window.togglePagoAgenda = function(id, chave){
   renderAll(); save();
 };
 
-window.lancarAgenda = function(id, chave){
-  const a = (DB.agenda||[]).find(x=>x.id===id);
-  if(!a) return;
-  const ref = id + '|' + chave;
-  if(DB.variaveis.some(x=>x.agendaRef===ref)) return showToast('⚠️ Já lançado como despesa.','err');
-
-  const y = +chave.slice(0,4), m = +chave.slice(5,7)-1;
-  const oc = _ocorrenciasDoMes(m, y).find(o=>o.ag.id===id);
-  if(!oc) return;
-
-  DB.variaveis.push({
-    id: uid(), desc: a.desc, cat: a.cat || 'outros', valor: a.valor,
-    data: oc.data, status: oc.pago ? 'Pago' : 'A pagar',
-    dataPago: oc.pago ? (a.pagos[chave] || null) : null,
-    who: a.who || currentUser || 'Eu', m, y, agendaRef: ref
-  });
-  renderAll(); save();
-  showToast('✅ Lançado em Despesas Variáveis!','ok');
-};
-
 window.delAgenda = function(id){
   const a = (DB.agenda||[]).find(x=>x.id===id);
   if(!a) return;
@@ -4347,8 +4327,6 @@ function renderAgenda(){
     return `<div class="ag-grupo-tit">${titulo} · ${arr.length}</div>` + arr.map(o=>{
       const a  = o.ag;
       const dt = new Date(+o.data.slice(0,4), +o.data.slice(5,7)-1, +o.data.slice(8,10));
-      const ref = a.id + '|' + o.chave;
-      const lancado = DB.variaveis.some(x=>x.agendaRef===ref);
       return `<div class="ag-item ${o.st}">
         <div class="ag-data">
           <div class="d">${o.data.slice(8,10)}</div>
@@ -4368,7 +4346,6 @@ function renderAgenda(){
         <div class="ag-acoes">
           <button class="btn-sm" title="${o.pago?'Marcar como não pago':'Marcar como pago'}" onclick="togglePagoAgenda('${a.id}','${o.chave}')">${o.pago?'↩':'✓'}</button>
           ${a.tipo==='cartao' ? '' : `
-          <button class="btn-sm" title="${lancado?'Já lançado':'Lançar em Despesas Variáveis'}" ${lancado?'disabled style="opacity:.4;cursor:default"':''} onclick="lancarAgenda('${a.id}','${o.chave}')">📥</button>
           <button class="btn-sm" title="Editar" onclick="openEditAgenda('${a.id}')">✏️</button>
           <button class="btn-del" title="Excluir" onclick="delAgenda('${a.id}')">✕</button>`}
         </div>
