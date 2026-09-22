@@ -83,12 +83,19 @@ function montarMensagem(titulo, avisos) {
 
 async function main() {
   const hoje = hojeISO();
+  console.log('Data de hoje (calculada no servidor do GitHub Actions, em UTC):', hoje);
+
   const financasSnap = await db.collection('financas').get();
+  console.log(`Encontrado(s) ${financasSnap.size} plano(s) na coleção "financas".`);
   let totalEnviados = 0;
 
   for (const planoDoc of financasSnap.docs) {
     const plano = planoDoc.data();
     const prefs = plano.prefs || {};
+    // Só o necessário para depurar, sem expor o chat ID nem nenhum dado do lançamento.
+    console.log(
+      `Plano ${planoDoc.id}: telegramAtivo=${!!prefs.telegramAtivo}, temChatId=${!!prefs.telegramChatId}, diasAntes=${prefs.telegramDiasAntes}`
+    );
     if (!prefs.telegramAtivo || !prefs.telegramChatId) continue;
     const diasAntes = Number.isFinite(prefs.telegramDiasAntes) ? prefs.telegramDiasAntes : 2;
 
@@ -96,6 +103,7 @@ async function main() {
       planoDoc.ref.collection('fixas').get(),
       planoDoc.ref.collection('variaveis').get(),
     ]);
+    console.log(`  Fixas: ${fixasSnap.size} lançamento(s). Variáveis: ${variaveisSnap.size} lançamento(s).`);
 
     const avisos = coletarAvisos(
       fixasSnap.docs.map((d) => d.data()),
@@ -103,6 +111,7 @@ async function main() {
       hoje,
       diasAntes
     );
+    console.log(`  Avisos encontrados para esse plano: ${avisos.length}.`);
     if (!avisos.length) continue;
 
     const texto = montarMensagem(plano.planTitle || 'Conta Aí', avisos);
