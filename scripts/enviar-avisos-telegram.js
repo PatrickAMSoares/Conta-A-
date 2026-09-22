@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * Envia avisos no Telegram para despesas (Fixas, Variáveis e Agenda) perto
- * de vencer. Roda agendado via GitHub Actions (.github/workflows/
- * avisos-telegram.yml) — o app em si (index.html) é só HTML/CSS/JS
- * estático, sem servidor, então esse script é quem efetivamente dispara
- * as mensagens fora do navegador do usuário.
+ * Envia avisos no Telegram para despesas (Fixas, Variáveis, Agenda e
+ * faturas de Cartão) perto de vencer. Roda agendado via GitHub Actions
+ * (.github/workflows/avisos-telegram.yml) — o app em si (index.html) é só
+ * HTML/CSS/JS estático, sem servidor, então esse script é quem
+ * efetivamente dispara as mensagens fora do navegador do usuário.
+ *
+ * Despesas Variáveis num cartão com vencimento cadastrado não avisam
+ * individualmente: entram somadas numa "fatura" única do cartão (mesmo
+ * cálculo do app, replicado em lib/cartoes.js), pra não duplicar o aviso.
  *
  * Segredos necessários (GitHub Actions secrets do repositório — NUNCA
  * commitados no código):
@@ -15,13 +19,15 @@
  *                               serviço → Gerar nova chave privada)
  *
  * Não lê nem grava nenhum dado além do necessário para montar os avisos:
- * só lê financas/{uid} (para prefs.telegram*) e as subcoleções fixas/
- * variaveis/agenda de cada plano. Não altera nenhum lançamento existente.
+ * só lê financas/{uid} (para prefs.telegram* e cartoes) e as subcoleções
+ * fixas/variaveis/agenda de cada plano. Não altera nenhum lançamento
+ * existente.
  */
 
 const admin = require('firebase-admin');
 const { diasEntre, dataFixaISO, itemPrecisaAviso } = require('./lib/vencimentos');
 const { ocorrenciasParaAviso } = require('./lib/agenda');
+const { ocorrenciasCartoesParaAviso } = require('./lib/cartoes');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -52,8 +58,12 @@ async function enviarMensagemTelegram(chatId, texto) {
   return json.ok;
 }
 
-function coletarAvisos(fixas, variaveis, agenda, hoje, diasAntes) {
+function coletarAvisos(fixas, variaveis, agenda, cartoes, hoje, diasAntes) {
   const avisos = [];
+  // Despesas num cartão com vencimento cadastrado já entram somadas na
+  // "fatura" única do cartão (ocorrenciasCartoesParaAviso) — sem isso, o
+  // mesmo gasto avisaria duas vezes: uma vez sozinho, outra dentro da soma.
+  const cartoesComVenc = new Set((cartoes || []).filter((c) => c.venc).map((c) => c.id));
 
   fixas.forEach((item) => {
     if (item.status === 'Pago') return;
@@ -65,11 +75,13 @@ function coletarAvisos(fixas, variaveis, agenda, hoje, diasAntes) {
 
   variaveis.forEach((item) => {
     if (item.status === 'Pago' || !item.data) return;
+    if (item.cartaoId && cartoesComVenc.has(item.cartaoId)) return;
     const diff = diasEntre(hoje, item.data);
     if (itemPrecisaAviso(diff, diasAntes)) avisos.push({ desc: item.desc, valor: item.valor, data: item.data, diff });
   });
 
   avisos.push(...ocorrenciasParaAviso(agenda, hoje, diasAntes, diasEntre, itemPrecisaAviso));
+  avisos.push(...ocorrenciasCartoesParaAviso(cartoes, variaveis, hoje, diasAntes, diasEntre, itemPrecisaAviso));
 
   return avisos;
 }
@@ -150,10 +162,13 @@ async function main() {
     );
 
     const agendaItems = agendaSnap.docs.map((d) => d.data());
+    const variaveisItems = variaveisSnap.docs.map((d) => d.data());
+    const cartoesDoPlano = plano.cartoes || [];
     const avisos = coletarAvisos(
       fixasSnap.docs.map((d) => d.data()),
-      variaveisSnap.docs.map((d) => d.data()),
+      variaveisItems,
       agendaItems,
+      cartoesDoPlano,
       hoje,
       diasAntes
     );
@@ -161,12 +176,13 @@ async function main() {
     if (!avisos.length) {
       const diag = diagnosticar(
         fixasSnap.docs.map((d) => d.data()),
-        variaveisSnap.docs.map((d) => d.data()),
+        variaveisItems,
         hoje
       );
       const diagAg = diagnosticarAgenda(agendaItems);
+      const comVenc = cartoesDoPlano.filter((c) => c.venc).length;
       console.log(
-        `  Diagnóstico: ${diag.totalNaoPago} lançamento(s) não pagos, ${diag.semData} sem data válida, menor diferença de dias até um vencimento = ${diag.menorDiffAbs}. Agenda: ${diagAg.total} item(ns) (${diagAg.unicas} única(s), ${diagAg.recorrentes} recorrente(s)).`
+        `  Diagnóstico: ${diag.totalNaoPago} lançamento(s) não pagos, ${diag.semData} sem data válida, menor diferença de dias até um vencimento = ${diag.menorDiffAbs}. Agenda: ${diagAg.total} item(ns) (${diagAg.unicas} única(s), ${diagAg.recorrentes} recorrente(s)). Cartões: ${cartoesDoPlano.length} (${comVenc} com vencimento cadastrado).`
       );
       continue;
     }

@@ -2721,7 +2721,7 @@ window.addCartao=function(){
   const venc=parseInt(document.getElementById('new-cartao-venc').value, 10);
   if(!nome) return alert('Informe o nome do cartão.');
   if(!venc || venc<1 || venc>31) return alert('Informe o dia de vencimento (entre 1 e 31).');
-  if(!cartoes.find(c=>c.nome===nome)) cartoes.push({id:novoId(),nome,venc});
+  if(!cartoes.find(c=>c.nome===nome)) cartoes.push({id:novoId(),nome,venc,pagos:{}});
   document.getElementById('new-cartao-name').value='';
   document.getElementById('new-cartao-venc').value='';
   renderCartoesList();
@@ -3587,6 +3587,14 @@ function renderVariaveis(){
   }
   tb.innerHTML=items.map(v=>{
     const tag = v.parcTot ? `<span class="parc-tag" title="Parcela ${v.parcNum} de ${v.parcTot}">${v.parcNum}/${v.parcTot}</span>` : '';
+    const cartaoVinc = v.cartaoId ? cartoes.find(c=>c.id===v.cartaoId) : null;
+    // Se o cartão tem vencimento cadastrado, essa despesa já entra somada na
+    // fatura única do cartão na Agenda — não precisa (nem deve) virar também
+    // um item avulso, senão o aviso conta a mesma compra duas vezes.
+    const cobertoPorFatura = cartaoVinc && cartaoVinc.venc && !v.agendaId;
+    const botaoAgenda = cobertoPorFatura
+      ? `<span class="btn-ag" style="opacity:.55;cursor:default" title="Incluída automaticamente na fatura do cartão ${_esc(cartaoVinc.nome)}">💳</span>`
+      : `<button class="btn-ag ${v.agendaId?'linked':''}" onclick="toggleAgendaLink('variavel','${v.id}')" title="${v.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${v.agendaId?'📆 ✓':'📆'}</button>`;
     return `<tr id="vr-${v.id}">
     <td><span id="v-desc-${v.id}">${_esc(v.desc)}</span>${tag}</td>
     <td id="v-cat-${v.id}">${chip(v.cat)}</td>
@@ -3596,7 +3604,7 @@ function renderVariaveis(){
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
     <td>
-      <button class="btn-ag ${v.agendaId?'linked':''}" onclick="toggleAgendaLink('variavel','${v.id}')" title="${v.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${v.agendaId?'📆 ✓':'📆'}</button>
+      ${botaoAgenda}
       <button class="btn-del" onclick="delVariavel('${v.id}')">✕</button>
     </td>
   </tr>`;}).join('');
@@ -4218,6 +4226,16 @@ window.toggleAgendaLink = function(tipo, id){
 };
 
 window.togglePagoAgenda = function(id, chave){
+  // Fatura de cartão (item calculado, não um documento da agenda) — ver _ocorrenciasCartoesDoMes.
+  if(String(id).indexOf('cartao:')===0){
+    const c = cartoes.find(x=>x.id===id.slice(7));
+    if(!c) return;
+    if(!c.pagos) c.pagos = {};
+    if(c.pagos[chave]) delete c.pagos[chave];
+    else c.pagos[chave] = new Date().toLocaleDateString('pt-BR');
+    renderAll(); save();
+    return;
+  }
   const a = (DB.agenda||[]).find(x=>x.id===id);
   if(!a) return;
   if(!a.pagos) a.pagos = {};
@@ -4263,6 +4281,27 @@ window.delAgenda = function(id){
   showToast('🗑️ Agendamento removido.','ok');
 };
 
+// Uma "fatura" por cartão com vencimento cadastrado, somando tudo que foi
+// lançado nele naquele mês — não é um documento salvo, é calculado na hora
+// a partir de DB.variaveis, então nunca fica desatualizado. Reaproveita
+// _montaOc (mesmo ajuste de dia útil e mesmo controle de "pago" por mês
+// que os itens normais da agenda), só que o "pagos" fica guardado no
+// próprio cartão em vez de num item da agenda.
+function _ocorrenciasCartoesDoMes(m, y){
+  const out = [];
+  cartoes.forEach(c=>{
+    if(!c.venc) return;
+    const soma = DB.variaveis.filter(v=>v.cartaoId===c.id && v.m===m && v.y===y).reduce((a,b)=>a+b.valor,0);
+    if(soma<=0) return;
+    const ultimo = new Date(y, m+1, 0).getDate();
+    const dia = Math.min(c.venc, ultimo);
+    const isoOrig = y+'-'+String(m+1).padStart(2,'0')+'-'+String(dia).padStart(2,'0');
+    const ag = { id:'cartao:'+c.id, desc:'Fatura '+c.nome, cat:'compras', valor:soma, tipo:'cartao', pagos:c.pagos||{} };
+    out.push(_montaOc(ag, isoOrig));
+  });
+  return out;
+}
+
 // ── AGENDA: RENDER ───────────────────────────────────────────────────────────
 function renderAgenda(){
   if(!Array.isArray(DB.agenda)) DB.agenda = [];
@@ -4271,7 +4310,7 @@ function renderAgenda(){
   const alerta= document.getElementById('agenda-proximos');
   if(!lista || !cards) return;
 
-  const ocs = _ocorrenciasDoMes(cm, cy);
+  const ocs = _ocorrenciasDoMes(cm, cy).concat(_ocorrenciasCartoesDoMes(cm, cy)).sort((p,q)=>p.data.localeCompare(q.data));
 
   const soma = f => ocs.filter(f).reduce((a,o)=>a+(o.ag.valor||0),0);
   const total = soma(()=>true);
@@ -4320,6 +4359,7 @@ function renderAgenda(){
           <div class="ag-meta">
             ${chip(a.cat)}
             ${a.tipo==='recorrente'?`<span class="ag-rec-tag">🔁 ${FREQ_LBL[a.intervalo||1]}</span>`:''}
+            ${a.tipo==='cartao'?`<span class="ag-rec-tag" title="Soma de tudo lançado nesse cartão no mês">💳 Fatura do cartão</span>`:''}
             ${o.movida?`<span class="ag-movida" title="Vencimento original: ${o.orig.split('-').reverse().join('/')}">↤ antecipado de ${o.orig.slice(8,10)}/${o.orig.slice(5,7)}</span>`:''}
             ${o.pago?`<span style="color:var(--verde);font-weight:700">Pago em ${a.pagos[o.chave]}</span>`:''}
           </div>
@@ -4327,9 +4367,10 @@ function renderAgenda(){
         <div class="ag-valor" style="color:${o.st==='atraso'?'#ef4444':o.st==='pago'?'var(--verde)':'var(--text)'}">${fmt(a.valor)}</div>
         <div class="ag-acoes">
           <button class="btn-sm" title="${o.pago?'Marcar como não pago':'Marcar como pago'}" onclick="togglePagoAgenda('${a.id}','${o.chave}')">${o.pago?'↩':'✓'}</button>
+          ${a.tipo==='cartao' ? '' : `
           <button class="btn-sm" title="${lancado?'Já lançado':'Lançar em Despesas Variáveis'}" ${lancado?'disabled style="opacity:.4;cursor:default"':''} onclick="lancarAgenda('${a.id}','${o.chave}')">📥</button>
           <button class="btn-sm" title="Editar" onclick="openEditAgenda('${a.id}')">✏️</button>
-          <button class="btn-del" title="Excluir" onclick="delAgenda('${a.id}')">✕</button>
+          <button class="btn-del" title="Excluir" onclick="delAgenda('${a.id}')">✕</button>`}
         </div>
       </div>`;
     }).join('');
