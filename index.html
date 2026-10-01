@@ -1726,15 +1726,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 
         <div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-            <b style="color:var(--text)">Passo 2 —</b> abra o seu bot no Telegram e envie qualquer mensagem (ex: "oi"). Depois clique abaixo.
+            <b style="color:var(--text)">Passo 2 —</b> abra o seu bot no Telegram e envie qualquer mensagem (ex: "oi"). Depois clique abaixo: vai abrir uma página nova com o seu código.
           </div>
-          <button type="button" class="btn-cancel" style="width:100%" onclick="descobrirChatIdTelegram()">🔎 Buscar meu código de vínculo</button>
+          <button type="button" class="btn-cancel" style="width:100%" onclick="abrirPaginaChatId()">🔎 Abrir página com meu código</button>
           <div id="tg-status" style="font-size:12px;margin-top:8px"></div>
         </div>
 
         <div class="fr" style="margin:0">
           <label>Código de vínculo (chat ID)</label>
-          <input id="tg-chatid" placeholder="Preenchido automaticamente, ou cole aqui manualmente">
+          <input id="tg-chatid" placeholder='Cole aqui o número de "chat":{"id":...'>
         </div>
 
         <div class="fr" style="margin:0">
@@ -5195,39 +5195,27 @@ window.toggleTelegramOpts = function(){
   if(opts) opts.style.display = (chk && chk.checked) ? 'flex' : 'none';
 };
 
-window.descobrirChatIdTelegram = async function(){
+// A API do Telegram não devolve cabeçalhos de CORS, então o navegador
+// bloqueia o app de LER a resposta de um fetch() direto (mesmo a chamada
+// funcionando do lado do Telegram) — por isso não dá pra buscar o chat ID
+// automaticamente de dentro do app. Em vez disso, abrimos a mesma URL numa
+// aba nova: aí é uma navegação normal do navegador, não uma chamada de
+// JavaScript, então não esbarra em CORS — e o usuário só copia o número.
+window.abrirPaginaChatId = function(){
   const tokenEl = document.getElementById('tg-token');
   const statusEl = document.getElementById('tg-status');
-  const chatEl = document.getElementById('tg-chatid');
   const token = tokenEl ? tokenEl.value.trim() : '';
   if(!token){
     if(statusEl){ statusEl.textContent = '⚠️ Cole o token do bot primeiro.'; statusEl.style.color = 'var(--laranja)'; }
     return;
   }
-  if(statusEl){ statusEl.textContent = 'Buscando...'; statusEl.style.color = 'var(--muted)'; }
-  try{
-    const resp = await fetch('https://api.telegram.org/bot' + encodeURIComponent(token) + '/getUpdates');
-    const json = await resp.json();
-    if(!json.ok) throw new Error(json.description || 'Token inválido.');
-    const updates = json.result || [];
-    if(!updates.length){
-      if(statusEl){ statusEl.textContent = '⚠️ Nenhuma mensagem encontrada. Envie uma mensagem para o bot no Telegram e tente de novo.'; statusEl.style.color = 'var(--laranja)'; }
-      return;
-    }
-    const ultima = updates[updates.length - 1];
-    const chat = (ultima.message && ultima.message.chat) || (ultima.channel_post && ultima.channel_post.chat);
-    if(!chat || !chat.id){
-      if(statusEl){ statusEl.textContent = '⚠️ Não encontramos o código na resposta do Telegram.'; statusEl.style.color = 'var(--laranja)'; }
-      return;
-    }
-    if(chatEl) chatEl.value = String(chat.id);
-    if(statusEl){ statusEl.textContent = '✅ Código encontrado! Confira e clique em Salvar.'; statusEl.style.color = 'var(--verde)'; }
-  } catch(e){
-    console.error('Erro ao buscar chat id do Telegram:', e);
-    if(statusEl){ statusEl.textContent = '⚠️ Não foi possível buscar automaticamente. Confira o token ou preencha o código manualmente.'; statusEl.style.color = 'var(--laranja)'; }
-  } finally {
-    if(tokenEl) tokenEl.value = '';
+  const url = 'https://api.telegram.org/bot' + encodeURIComponent(token) + '/getUpdates';
+  window.open(url, '_blank');
+  if(statusEl){
+    statusEl.innerHTML = 'Abrimos uma página nova. Procure por <code>"chat":{"id":NÚMERO</code> nela e cole esse número no campo "Código de vínculo" abaixo.';
+    statusEl.style.color = 'var(--muted)';
   }
+  if(tokenEl) tokenEl.value = '';
 };
 
 window.salvarTelegram = function(){

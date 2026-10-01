@@ -2,8 +2,10 @@
 /**
  * Testes da configuração de avisos no Telegram (modal "Avisos no
  * Telegram" dentro de Configurações). Cobre o toggle de ativação, a
- * busca automática do chat ID (com a chamada à API do Telegram
- * interceptada — nenhuma rede real, nenhum token real é usado) e a
+ * abertura da página de busca do chat ID (a API do Telegram não manda
+ * cabeçalho de CORS, então isso é feito abrindo uma aba nova — uma
+ * navegação normal do navegador — em vez de um fetch() de dentro do app;
+ * nenhuma rede real acontece no teste, só confere a URL aberta) e a
  * validação/persistência ao salvar.
  */
 
@@ -30,43 +32,41 @@ async function main() {
     await page.close();
   });
 
-  await test('descobrirChatIdTelegram preenche o chat ID a partir da resposta do Telegram (rede simulada)', async () => {
+  await test('abrirPaginaChatId sem token avisa e não abre nenhuma aba', async () => {
     const page = await newPage(browser, baseUrl);
-    await page.route('https://api.telegram.org/**/getUpdates', (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true, result: [{ message: { chat: { id: 999888777 } } }] }),
-      });
-    });
     await page.evaluate(() => openModal('telegram'));
     await page.check('#tg-ativo');
-    await page.fill('#tg-token', 'token-de-teste-123');
-    await page.click('text=🔎 Buscar meu código de vínculo');
-    await page.waitForTimeout(200);
-    const chatId = await page.inputValue('#tg-chatid');
-    const tokenDepois = await page.inputValue('#tg-token');
+    let abriuPopup = false;
+    page.once('popup', () => { abriuPopup = true; });
+    await page.evaluate(() => abrirPaginaChatId());
+    await page.waitForTimeout(150);
     const status = await page.locator('#tg-status').innerText();
-    assert.strictEqual(chatId, '999888777');
-    assert.strictEqual(tokenDepois, '', 'o token não deve continuar no campo depois de usado');
-    assert.ok(status.includes('encontrado'), 'deveria mostrar uma mensagem de sucesso');
+    assert.ok(status.includes('token'), 'deveria pedir pra colar o token primeiro');
+    assert.strictEqual(abriuPopup, false);
     await page.close();
   });
 
-  await test('descobrirChatIdTelegram avisa quando não há nenhuma mensagem ainda', async () => {
+  await test('abrirPaginaChatId com token abre a URL certa da API do Telegram numa aba nova', async () => {
     const page = await newPage(browser, baseUrl);
-    await page.route('https://api.telegram.org/**/getUpdates', (route) => {
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, result: [] }) });
+    // Intercepta a navegação (sem rede real) só pra conseguir inspecionar a
+    // URL que a aba nova tentou abrir, sem depender de internet de verdade.
+    await page.context().route('https://api.telegram.org/**', (route) => {
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"result":[]}' });
     });
     await page.evaluate(() => openModal('telegram'));
     await page.check('#tg-ativo');
     await page.fill('#tg-token', 'token-de-teste-123');
-    await page.click('text=🔎 Buscar meu código de vínculo');
-    await page.waitForTimeout(200);
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      page.click('text=🔎 Abrir página com meu código'),
+    ]);
+    await popup.waitForLoadState('load');
+    assert.strictEqual(popup.url(), 'https://api.telegram.org/bottoken-de-teste-123/getUpdates');
+    await popup.close();
+    const tokenDepois = await page.inputValue('#tg-token');
     const status = await page.locator('#tg-status').innerText();
-    const chatId = await page.inputValue('#tg-chatid');
-    assert.ok(status.includes('Nenhuma mensagem'), 'deveria orientar o usuário a mandar uma mensagem pro bot');
-    assert.strictEqual(chatId, '');
+    assert.strictEqual(tokenDepois, '', 'o token não deve continuar no campo depois de usado');
+    assert.ok(status.includes('chat'), 'deveria orientar o usuário a procurar "chat":{"id":...} na página aberta');
     await page.close();
   });
 
