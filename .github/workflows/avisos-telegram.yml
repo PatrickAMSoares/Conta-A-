@@ -2,8 +2,11 @@ name: Avisos de vencimento no Telegram
 
 on:
   schedule:
-    # 11:00 UTC = 08:00 no horário de Brasília (UTC-3, sem horário de verão)
-    - cron: '0 11 * * *'
+    # 10:47 UTC ~= 07:47 no horário de Brasília (UTC-3, sem horário de verão).
+    # Minuto quebrado de propósito: agendamentos em horas cheias (ex. 11:00)
+    # competem com um volume enorme de outros workflows no GitHub inteiro e
+    # atrasam bem mais — um minuto "torto" costuma rodar mais perto do horário.
+    - cron: '47 10 * * *'
   workflow_dispatch: {}
 
 jobs:
