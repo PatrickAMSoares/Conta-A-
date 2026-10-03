@@ -191,6 +191,10 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-ag{background:transparent;color:var(--azul);font-size:11px;border:1px solid rgba(91,156,246,.3);border-radius:7px;padding:4px 8px;cursor:pointer;margin-right:4px;}
 .btn-ag:hover{background:rgba(91,156,246,.1);}
 .btn-ag.linked{color:var(--verde);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
+.btn-mv-wrap{display:inline-flex;flex-direction:column;gap:2px;margin-right:4px;vertical-align:middle;}
+.btn-mv{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;width:20px;height:16px;line-height:1;font-size:9px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
+.btn-mv:hover{background:var(--surface3);}
+.btn-mv:disabled{opacity:.3;cursor:default;}
 
 .tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:420px;}
@@ -2410,9 +2414,28 @@ async function sincronizar(){
 
 function ordenarLista(lista){
   if (lista==='ganhos' || lista==='fixas' || lista==='variaveis'){
-    DB[lista].sort(function(a,b){ return (a.y-b.y) || (a.m-b.m); });
+    // Dentro do mesmo mês, respeita a ordem manual (campo "ordem"); itens
+    // sem esse campo (lançamentos antigos) ficam por padrão na posição em
+    // que o Firestore devolveu, de forma estável (sort é estável em JS).
+    DB[lista].sort(function(a,b){ return (a.y-b.y) || (a.m-b.m) || ((a.ordem||0)-(b.ordem||0)); });
   }
 }
+
+// Move um lançamento uma posição pra cima/baixo dentro do mês em exibição,
+// e renumera a ordem de todos os itens daquele mês (0,1,2…) pra garantir
+// uma posição bem definida que sobrevive a um recarregamento da página.
+window.moverItem = function(lista, id, direcao){
+  const doMes = DB[lista].filter(x=>x.m===cm && x.y===cy);
+  const idx = doMes.findIndex(x=>x.id===id);
+  const alvo = idx + direcao;
+  if(idx<0 || alvo<0 || alvo>=doMes.length) return;
+  const tmp = doMes[idx];
+  doMes[idx] = doMes[alvo];
+  doMes[alvo] = tmp;
+  doMes.forEach((item,i)=>{ item.ordem = i; });
+  ordenarLista(lista);
+  renderAll(); save();
+};
 
 async function carregarListas(uid){
   for (var i = 0; i < LISTAS.length; i++){
@@ -2941,7 +2964,7 @@ window.saveGanho=function(){
     return;
   }
 
-  DB.ganhos.push({id:uid(),desc,valor,status,forma,pessoa,who,whoId:currentUserId(),m:cm,y:cy});
+  DB.ganhos.push({id:uid(),desc,valor,status,forma,pessoa,who,whoId:currentUserId(),m:cm,y:cy,ordem:Date.now()});
   closeModal('ganhos');
   ['g-desc','g-valor'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
   resetFormaGanho();
@@ -2960,6 +2983,14 @@ window.cycleGStatus=function(id){
   renderAll();save();
 };
 
+// Botões ▲▼ pra reordenar manualmente a linha dentro do mês (ver moverItem).
+function _botoesMover(lista, id, idx, total){
+  return `<span class="btn-mv-wrap">
+    <button class="btn-mv" title="Mover para cima" onclick="moverItem('${lista}','${id}',-1)" ${idx===0?'disabled':''}>▲</button>
+    <button class="btn-mv" title="Mover para baixo" onclick="moverItem('${lista}','${id}',1)" ${idx===total-1?'disabled':''}>▼</button>
+  </span>`;
+}
+
 function renderGanhos(){
   const items=DB.ganhos.filter(x=>x.m===cm&&x.y===cy);
   const tb=document.getElementById('tb-ganhos');
@@ -2969,7 +3000,7 @@ function renderGanhos(){
     return;
   }
 
-  tb.innerHTML=items.map(g=>{
+  tb.innerHTML=items.map((g,i)=>{
     const cls = FORMA_CLS[g.forma] || 'f-vazio';
     const lbl = FORMA_LBL[g.forma] || 'Definir';
     const tip = g.forma ? 'Clique para alternar' : 'Não informado — clique para definir';
@@ -2978,7 +3009,7 @@ function renderGanhos(){
       <td id="g-val-${g.id}" style="font-weight:700">${fmt(g.valor)}</td>
       <td><span class="forma-tag ${cls}" role="button" tabindex="0" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
       <td><span class="badge ${ST_CLS[g.status]||''}" role="button" tabindex="0" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
-      <td><button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
+      <td>${_botoesMover('ganhos',g.id,i,items.length)}<button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -3127,7 +3158,7 @@ window.saveEditFixa = function() {
         const isPastM = y < cy || (y === cy && m < cm);
         const statusM = isPastM ? 'Pago' : repStatus;
         DB.fixas.push({id:uid(), desc:f.desc, cat:f.cat, valor:f.valor, venc:f.venc,
-          status:statusM, who:f.who||currentUser, whoId:f.whoId||currentUserId(), m, y});
+          status:statusM, who:f.who||currentUser, whoId:f.whoId||currentUserId(), m, y, ordem:Date.now()});
         added++;
       }
     }
@@ -3235,7 +3266,7 @@ window.saveFixa=function(){
   const who=currentUser||'Eu';
   if(!desc||valor<=0) return alert('Preencha a descrição e o valor.');
 
-  DB.fixas.push({id:uid(),desc,cat,valor,venc,status,who,m:cm,y:cy});
+  DB.fixas.push({id:uid(),desc,cat,valor,venc,status,who,m:cm,y:cy,ordem:Date.now()});
 
   const repeat = document.getElementById('f-repeat') && document.getElementById('f-repeat').checked;
   if(repeat) {
@@ -3247,7 +3278,7 @@ window.saveFixa=function(){
     }
     for(const {m, y} of months) {
       const exists = DB.fixas.some(f => f.desc === desc && f.m === m && f.y === y);
-      if(!exists) DB.fixas.push({id:uid(),desc,cat,valor,venc,status:repeatStatus,who,m,y});
+      if(!exists) DB.fixas.push({id:uid(),desc,cat,valor,venc,status:repeatStatus,who,m,y,ordem:Date.now()});
     }
     const added = months.length;
     closeModal('fixas');
@@ -3360,7 +3391,7 @@ function renderFixas(){
   const tb=document.getElementById('tb-fixas');
   if(!items.length){tb.innerHTML=empt('📌','Nenhuma despesa fixa.');document.getElementById('fixas-total').innerHTML='';return;}
   const catOpts=CAT_OPTS.filter(x=>['casa','carro','educacao','seguro','saude','mei','outros'].includes(x.v));
-  tb.innerHTML=items.map(f=>`<tr id="fr-${f.id}">
+  tb.innerHTML=items.map((f,i)=>`<tr id="fr-${f.id}">
     <td id="f-desc-${f.id}" onclick="openEditFixa('${f.id}')" style="cursor:pointer" title="Clique para editar">${_esc(f.desc)}</td>
     <td id="f-cat-${f.id}">${chip(f.cat)}</td>
     <td id="f-val-${f.id}" style="font-weight:700">${fmt(f.valor)}</td>
@@ -3368,6 +3399,7 @@ function renderFixas(){
     <td style="font-size:12px;color:${f.dataPago?'#86efac':'var(--muted2)'}">${f.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[f.status]||''}" role="button" tabindex="0" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
     <td>
+      ${_botoesMover('fixas',f.id,i,items.length)}
       <button class="btn-ag ${f.agendaId?'linked':''}" onclick="toggleAgendaLink('fixa','${f.id}')" title="${f.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${f.agendaId?'📆 ✓':'📆'}</button>
       <button class="btn-del" onclick="delFixa('${f.id}')">✕</button>
     </td>
@@ -3470,7 +3502,7 @@ window.saveVariavel=function(){
   const parcOn = document.getElementById('v-parc') && document.getElementById('v-parc').checked;
 
   if(!parcOn){
-    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,whoId,cartaoId,m:cm,y:cy});
+    DB.variaveis.push({id:uid(),desc,cat,valor,data,status,who,whoId,cartaoId,m:cm,y:cy,ordem:Date.now()});
     _fecharModalVariavel();
     renderAll(); save();
     return;
@@ -3505,7 +3537,8 @@ window.saveVariavel=function(){
       data: dataP,
       status: n === parcAtual ? status : 'A pagar',
       who, whoId, cartaoId, m: pm, y: py,
-      parcGrupo: grupo, parcNum: n, parcTot: qtd
+      parcGrupo: grupo, parcNum: n, parcTot: qtd,
+      ordem: Date.now() + n
     });
   }
 
@@ -3577,7 +3610,7 @@ window.delVariavel=function(id){
 };
 
 function renderVariaveis(){
-  const items=DB.variaveis.filter(x=>x.m===cm&&x.y===cy).sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+  const items=DB.variaveis.filter(x=>x.m===cm&&x.y===cy);
   const tb=document.getElementById('tb-variaveis');
   if(!items.length){
     tb.innerHTML=empt('🛒','Nenhuma despesa variável.');
@@ -3585,7 +3618,7 @@ function renderVariaveis(){
     const pcEl=document.getElementById('variaveis-por-cartao'); if(pcEl) pcEl.innerHTML='';
     return;
   }
-  tb.innerHTML=items.map(v=>{
+  tb.innerHTML=items.map((v,i)=>{
     const tag = v.parcTot ? `<span class="parc-tag" title="Parcela ${v.parcNum} de ${v.parcTot}">${v.parcNum}/${v.parcTot}</span>` : '';
     const cartaoVinc = v.cartaoId ? cartoes.find(c=>c.id===v.cartaoId) : null;
     // Se o cartão tem vencimento cadastrado, essa despesa já entra somada na
@@ -3604,6 +3637,7 @@ function renderVariaveis(){
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
     <td>
+      ${_botoesMover('variaveis',v.id,i,items.length)}
       ${botaoAgenda}
       <button class="btn-del" onclick="delVariavel('${v.id}')">✕</button>
     </td>
@@ -4476,7 +4510,7 @@ window.confirmarFecharMes = function(){
       status: 'Recebido',
       forma: document.getElementById('fechar-forma').value || 'conta',
       pessoa: quem, who: quem, whoId: currentUserId(),
-      m: prox.m, y: prox.y, fechaMes: marca
+      m: prox.m, y: prox.y, fechaMes: marca, ordem: Date.now()
     });
   } else {
     const ultimoDia = new Date(prox.y, prox.m + 1, 0).getDate();
@@ -4486,7 +4520,7 @@ window.confirmarFecharMes = function(){
       data: prox.y + '-' + String(prox.m+1).padStart(2,'0') + '-' + String(Math.min(5, ultimoDia)).padStart(2,'0'),
       status: 'A pagar',
       who: quem, whoId: currentUserId(),
-      m: prox.m, y: prox.y, fechaMes: marca
+      m: prox.m, y: prox.y, fechaMes: marca, ordem: Date.now()
     });
   }
 
@@ -5138,18 +5172,19 @@ window.confirmarImportacao = function(){
   const who = currentUser || 'Eu';
   const whoId = currentUserId();
   let nG=0, nF=0, nV=0;
-  _importPendentes.forEach(item=>{
+  _importPendentes.forEach((item, idx)=>{
+    const ordem = Date.now() + idx;
     if(item.tipo==='receita'){
       DB.ganhos.push({ id:uid(), desc:item.desc, valor:item.valor, status:item.status,
-        forma:'conta', pessoa:who, who, whoId, m:item.m, y:item.y });
+        forma:'conta', pessoa:who, who, whoId, m:item.m, y:item.y, ordem });
       nG++;
     } else if(item.tipo==='fixa'){
       DB.fixas.push({ id:uid(), desc:item.desc, cat:item.cat, valor:item.valor, venc:item.venc,
-        status:item.status, who, whoId, m:item.m, y:item.y });
+        status:item.status, who, whoId, m:item.m, y:item.y, ordem });
       nF++;
     } else {
       DB.variaveis.push({ id:uid(), desc:item.desc, cat:item.cat, valor:item.valor, data:item.data,
-        status:item.status, who, whoId, cartaoId:null, m:item.m, y:item.y });
+        status:item.status, who, whoId, cartaoId:null, m:item.m, y:item.y, ordem });
       nV++;
     }
   });
