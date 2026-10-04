@@ -196,6 +196,11 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-mv:hover{background:var(--surface3);}
 .btn-mv:disabled{opacity:.3;cursor:default;}
 
+.emoji-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;max-height:140px;overflow-y:auto;padding:2px;}
+.emoji-pick-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.emoji-pick-btn:hover{background:var(--surface3);}
+.emoji-pick-btn.sel{border-color:var(--accent);background:rgba(190,242,100,.12);}
+
 .tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:420px;}
 thead th{padding:10px 13px;text-align:left;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);}
@@ -1355,6 +1360,42 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <div class="two" style="margin-top:12px">
       <div class="fr" style="margin:0"><label>Nome da categoria</label><input id="new-categoria-nome" placeholder="Ex: Pet, Viagem…"></div>
       <div class="fr" style="margin:0;max-width:80px"><label>Emoji</label><input id="new-categoria-emoji" placeholder="🐶" maxlength="4"></div>
+    </div>
+    <div class="fr" style="margin-top:6px">
+      <label>Ou escolha um emoji</label>
+      <div class="emoji-picker" id="categoria-emoji-picker">
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🐶')">🐶</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🐾')">🐾</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('✈️')">✈️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🏖️')">🏖️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎮')">🎮</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎬')">🎬</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎵')">🎵</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('📚')">📚</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎓')">🎓</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('💻')">💻</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('📱')">📱</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🍽️')">🍽️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('☕')">☕</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🍺')">🍺</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('💇')">💇</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('💅')">💅</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🏋️')">🏋️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('👕')">👕</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('👶')">👶</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎁')">🎁</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🎂')">🎂</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🪴')">🪴</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🧹')">🧹</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🛠️')">🛠️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('⛽')">⛽</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🚌')">🚌</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🏥')">🏥</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🧾')">🧾</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('🛡️')">🛡️</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('📦')">📦</button>
+        <button type="button" class="emoji-pick-btn" onclick="selecionarEmojiCategoria('📌')">📌</button>
+      </div>
     </div>
     <div class="fr" style="margin-top:8px"><label>Cor</label><input id="new-categoria-cor" type="color" value="#9ca3af" style="width:60px;height:34px;padding:2px;cursor:pointer;background:none;border:1px solid var(--border);border-radius:8px"></div>
     <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('categorias')">Fechar</button><button class="btn-add" onclick="addCategoria()">Adicionar</button></div>
@@ -2846,14 +2887,28 @@ function renderCategoriaSelects(){
     if(atual) sel.value=atual;
   });
 }
+// Clique num emoji da listinha de sugestões: preenche o campo (que
+// continua editável, pra quem preferir digitar/colar outro emoji).
+window.selecionarEmojiCategoria=function(emoji){
+  const input=document.getElementById('new-categoria-emoji');
+  if(input) input.value=emoji;
+  document.querySelectorAll('#categoria-emoji-picker .emoji-pick-btn').forEach(b=>{
+    b.classList.toggle('sel', b.textContent.trim()===emoji);
+  });
+};
+function resetCategoriaForm(){
+  const nome=document.getElementById('new-categoria-nome'); if(nome) nome.value='';
+  const emoji=document.getElementById('new-categoria-emoji'); if(emoji) emoji.value='';
+  const cor=document.getElementById('new-categoria-cor'); if(cor) cor.value='#9ca3af';
+  document.querySelectorAll('#categoria-emoji-picker .emoji-pick-btn.sel').forEach(b=>b.classList.remove('sel'));
+}
 window.addCategoria=function(){
   const nome=document.getElementById('new-categoria-nome').value.trim();
   const emoji=document.getElementById('new-categoria-emoji').value.trim();
   const cor=document.getElementById('new-categoria-cor').value || '#9ca3af';
   if(!nome) return alert('Informe o nome da categoria.');
   if(!categoriasCustom.find(c=>c.nome.toLowerCase()===nome.toLowerCase())) categoriasCustom.push({id:novoId(),nome,emoji,cor});
-  document.getElementById('new-categoria-nome').value='';
-  document.getElementById('new-categoria-emoji').value='';
+  resetCategoriaForm();
   renderCategoriasList();
   renderCategoriaSelects();
   renderAll();
@@ -2970,7 +3025,7 @@ window.enviarResetLogado = async function(){
 window.openModal=function(n){
   if(n==='users') renderUsersList();
   if(n==='cartoes') renderCartoesList();
-  if(n==='categorias') renderCategoriasList();
+  if(n==='categorias'){ renderCategoriasList(); resetCategoriaForm(); }
   if(n==='settings') initSettingsModal();
   const el = document.getElementById('modal-'+n);
   if(el) el.classList.add('open');
