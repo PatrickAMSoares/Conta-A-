@@ -39,6 +39,64 @@ async function main() {
     await page.close();
   });
 
+  await test('clicar num emoji da lista de sugestões preenche o campo de emoji', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('categorias'));
+    await page.click('#categoria-emoji-picker button:has-text("✈️")');
+    const valor = await page.inputValue('#new-categoria-emoji');
+    assert.strictEqual(valor, '✈️');
+    const selecionado = await page.locator('#categoria-emoji-picker button.sel').innerText();
+    assert.strictEqual(selecionado, '✈️');
+    await page.close();
+  });
+
+  await test('escolher um emoji da lista e salvar cria a categoria com aquele emoji', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('categorias'));
+    await page.fill('#new-categoria-nome', 'Viagem');
+    await page.click('#categoria-emoji-picker button:has-text("🏖️")');
+    await page.evaluate(() => addCategoria());
+    const categoria = await page.evaluate(() => categoriasCustom[0]);
+    assert.strictEqual(categoria.emoji, '🏖️');
+    await page.close();
+  });
+
+  await test('depois de adicionar, o formulário limpa e nenhum emoji fica marcado como selecionado', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('categorias'));
+    await page.fill('#new-categoria-nome', 'Viagem');
+    await page.click('#categoria-emoji-picker button:has-text("🏖️")');
+    await page.evaluate(() => addCategoria());
+    const valorEmoji = await page.inputValue('#new-categoria-emoji');
+    const marcados = await page.locator('#categoria-emoji-picker button.sel').count();
+    assert.strictEqual(valorEmoji, '');
+    assert.strictEqual(marcados, 0);
+    await page.close();
+  });
+
+  await test('reabrir o modal de categorias limpa a seleção de emoji de uma tentativa anterior', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('categorias'));
+    await page.click('#categoria-emoji-picker button:has-text("🐶")');
+    await page.evaluate(() => { closeModal('categorias'); openModal('categorias'); });
+    const valorEmoji = await page.inputValue('#new-categoria-emoji');
+    const marcados = await page.locator('#categoria-emoji-picker button.sel').count();
+    assert.strictEqual(valorEmoji, '');
+    assert.strictEqual(marcados, 0);
+    await page.close();
+  });
+
+  await test('digitar um emoji manualmente continua funcionando (a lista é só um atalho)', async () => {
+    const page = await newPage(browser, baseUrl);
+    await page.evaluate(() => openModal('categorias'));
+    await page.fill('#new-categoria-nome', 'Academia');
+    await page.fill('#new-categoria-emoji', '💪');
+    await page.evaluate(() => addCategoria());
+    const categoria = await page.evaluate(() => categoriasCustom[0]);
+    assert.strictEqual(categoria.emoji, '💪');
+    await page.close();
+  });
+
   await test('não cria uma categoria duplicada (mesmo nome, ignorando maiúsculas)', async () => {
     const page = await newPage(browser, baseUrl);
     await page.evaluate(() => { categoriasCustom.push({ id: 'cat1', nome: 'Pet', emoji: '🐶', cor: '#9ca3af' }); });
