@@ -628,6 +628,8 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   .auth-left .auth-tagline{font-size:22px;margin-bottom:12px;}
   .auth-left .auth-desc{font-size:13px;margin-top:16px;}
 }
+:root.light #setup-screen .auth-logo-name{color:#fff !important;}
+:root.light #setup-screen .auth-logo-name .accent{color:#3ecf7a !important;}
 :root.light #setup-screen .auth-tagline{color:#fff !important;}
 :root.light #setup-screen .auth-tagline .accent{color:#3ecf7a !important;}
 :root.light #setup-screen .auth-desc{color:rgba(255,255,255,.55) !important;}
@@ -668,9 +670,17 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 }
 /* ══════ OVERRIDE FINAL — TELA DE LOGIN ══════ */
 
-/* 1. Remove o ícone */
-#setup-screen .auth-logo-svg,
-#setup-screen svg[width="56"]{display:none !important;}
+/* 1. Logo (ícone + nome) centralizados */
+#setup-screen .auth-logo-svg{
+  display:block !important;width:48px !important;height:48px !important;
+  margin:0 auto 12px !important;
+}
+#setup-screen .auth-logo-name{
+  font-family:'Inter',sans-serif !important;font-size:26px !important;font-weight:800 !important;
+  color:#fff !important;letter-spacing:-.6px !important;margin:0 0 20px !important;
+  text-align:center !important;
+}
+#setup-screen .auth-logo-name .accent{color:#3ecf7a !important;}
 
 /* 2. Centralização forçada */
 #setup-screen .auth-split{
@@ -1039,6 +1049,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   <rect x="49" y="36" width="6.5" height="23" rx="2" fill="#178a41"/>
   <rect x="58" y="27" width="6.5" height="32" rx="2" fill="#0aa347"/>
 </svg>
+          <div class="auth-logo-name">Conta <span class="accent">Aí</span></div>
           <div class="auth-tagline">Seu dinheiro.<br>Seu controle.<br><span class="accent">Seu futuro.</span></div>
           <div class="auth-desc">Transforme a forma como você organiza e acompanha suas finanças.</div>
         </div>
@@ -1104,6 +1115,11 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
 </div>
 <div class="topbar">
   <div class="logo-wrap">
+    <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0" aria-hidden="true">
+      <rect x="40" y="44" width="6.5" height="15" rx="2" fill="#1f7a3d"/>
+      <rect x="49" y="36" width="6.5" height="23" rx="2" fill="#178a41"/>
+      <rect x="58" y="27" width="6.5" height="32" rx="2" fill="#0aa347"/>
+    </svg>
     <div id="logo-display" class="logo-text" role="button" tabindex="0" onclick="editTitle()" style="font-size:15px;font-weight:600;letter-spacing:0" title="Clique para editar o nome"><span style="color:var(--muted);font-weight:400;font-family:'Inter',sans-serif">Conta Aí · </span>
 
 <span style="color:var(--accent);font-weight:700" id="logo-name"></span></div>
