@@ -1346,6 +1346,21 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   </div>
 </div>
 
+<!-- MODAL CATEGORIAS -->
+<div class="modal-bg" id="modal-categorias" style="z-index:10001">
+  <div class="modal">
+    <h3>Categorias</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Crie categorias próprias para organizar Despesas Fixas e Variáveis.</p>
+    <div id="categorias-list"></div>
+    <div class="two" style="margin-top:12px">
+      <div class="fr" style="margin:0"><label>Nome da categoria</label><input id="new-categoria-nome" placeholder="Ex: Pet, Viagem…"></div>
+      <div class="fr" style="margin:0;max-width:80px"><label>Emoji</label><input id="new-categoria-emoji" placeholder="🐶" maxlength="4"></div>
+    </div>
+    <div class="fr" style="margin-top:8px"><label>Cor</label><input id="new-categoria-cor" type="color" value="#9ca3af" style="width:60px;height:34px;padding:2px;cursor:pointer;background:none;border:1px solid var(--border);border-radius:8px"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('categorias')">Fechar</button><button class="btn-add" onclick="addCategoria()">Adicionar</button></div>
+  </div>
+</div>
+
 <!-- MODAL GANHOS -->
 <div class="modal-bg" id="modal-ganhos">
   <div class="modal">
@@ -1637,6 +1652,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <div class="settings-row-body">
           <div class="settings-row-title">Cartões</div>
           <div class="settings-row-sub">Agrupe despesas variáveis por cartão</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="openModal('categorias')">
+        <div class="settings-ico" style="background:rgba(253,186,116,.14);color:#fdba74">🏷️</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Categorias</div>
+          <div class="settings-row-sub">Crie categorias próprias de despesas</div>
         </div>
         <span class="settings-chevron">›</span>
       </div>
@@ -2224,6 +2248,7 @@ let planTitle = '';
 let currentUser = '';
 let users = [];
 let cartoes = [];
+let categoriasCustom = [];
 const DB={ganhos:[],fixas:[],variaveis:[],economias:[],notas:[],agenda:[]};
 let isSaving=false;
 let saveTimeout=null;
@@ -2336,6 +2361,7 @@ function _metaSnapshot(){
     planTitle: planTitle,
     users: users,
     cartoes: cartoes,
+    categoriasCustom: categoriasCustom,
     prefs: getPrefs(),
     email: (auth.currentUser && auth.currentUser.email) || ''
   });
@@ -2396,6 +2422,7 @@ async function sincronizar(){
         planTitle: planTitle,
         users: users,
         cartoes: cartoes,
+        categoriasCustom: categoriasCustom,
         prefs: getPrefs(),
         email: (auth.currentUser && auth.currentUser.email) || '',
         updatedAt: new Date().toISOString()
@@ -2541,7 +2568,7 @@ function resetAppState(){
   window._unsubscribe && window._unsubscribe();
   window._unsubscribe = null;
   DOC_REF = null; currentUID = '';
-  planTitle = ''; currentUser = ''; users = []; cartoes = [];
+  planTitle = ''; currentUser = ''; users = []; cartoes = []; categoriasCustom = [];
   ['ganhos','fixas','variaveis','economias','notas'].forEach(k => DB[k] = []);
   cm = new Date().getMonth();
   cy = new Date().getFullYear();
@@ -2630,6 +2657,7 @@ function loadFromSnapshot(data) {
   if (data.planTitle) planTitle = data.planTitle;
   if (data.users && Array.isArray(data.users)) users = data.users;
   if (data.cartoes && Array.isArray(data.cartoes)) cartoes = data.cartoes;
+  if (data.categoriasCustom && Array.isArray(data.categoriasCustom)) categoriasCustom = data.categoriasCustom;
   // NOTA: um campo "DB" legado pode existir neste documento (gravado por uma versão
   // antiga do PIN). As subcoleções (financas/{uid}/{lista}) são a fonte de verdade
   // para ganhos/fixas/variaveis/economias/notas/agenda — nunca sobrescrever DB local
@@ -2649,7 +2677,11 @@ function save() {
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const uid=()=>Math.random().toString(36).slice(2,9);
-const chip=c=>`<span class="chip ${CAT_CLS[c]||'c-outros'}">${CAT_MAP[c]||c}</span>`;
+const chip=c=>{
+  const custom = categoriasCustom.find(x=>x.id===c);
+  if (custom) return `<span class="chip" style="background:${_hexAlpha(custom.cor,.12)};color:${custom.cor}">${custom.emoji||'📌'} ${_esc(custom.nome)}</span>`;
+  return `<span class="chip ${CAT_CLS[c]||'c-outros'}">${CAT_MAP[c]||c}</span>`;
+};
 const ava=(n,cls='')=>`<span class="avatar ${cls}">${(n||'?')[0].toUpperCase()}</span>`;
 const empt=(icon,msg)=>`<tr><td colspan="9"><div class="empty-state"><div class="icon">${icon}</div><p>${msg}</p></div></td></tr>`;
 const userColor=name=>{const u=users.find(x=>x.name===name);return u?u.color:'#777';};
@@ -2772,6 +2804,69 @@ window.removeCartao=function(i){
   save();
 };
 
+// ── CATEGORIAS PERSONALIZADAS ────────────────────────────────────────────────
+function _hexAlpha(hex, alpha){
+  const h = (hex||'#9ca3af').replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${Number.isNaN(r)?156:r},${Number.isNaN(g)?163:g},${Number.isNaN(b)?175:b},${alpha})`;
+}
+// Lista completa de categorias (fixas do app + as criadas pelo usuário),
+// usada para montar os <select> de categoria e pra importação de CSV.
+function categoriaOpts(){
+  return CAT_OPTS.concat(categoriasCustom.map(c=>({v:c.id, l:(c.emoji||'📌')+' '+c.nome})));
+}
+function catLabel(c){
+  const custom = categoriasCustom.find(x=>x.id===c);
+  return custom ? ((custom.emoji||'📌')+' '+_esc(custom.nome)) : (CAT_MAP[c]||c);
+}
+function catColor(c){
+  const custom = categoriasCustom.find(x=>x.id===c);
+  return custom ? custom.cor : (CAT_CLR[c]||'#aaa');
+}
+function renderCategoriasList(){
+  const el=document.getElementById('categorias-list');
+  if(!el) return;
+  el.innerHTML=categoriasCustom.length ? categoriasCustom.map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${c.emoji||'📌'} ${_esc(c.nome)}</span>
+      <span style="width:18px;height:18px;border-radius:5px;background:${c.cor};display:inline-block;flex-shrink:0"></span>
+      <button class="btn-del" onclick="removeCategoria(${i})">✕</button>
+    </div>`).join('') : '<div style="font-size:13px;color:var(--muted);padding:6px 0">Nenhuma categoria própria ainda.</div>';
+}
+// Acrescenta as categorias criadas pelo usuário nos <select> de categoria dos
+// formulários de Despesa Fixa/Variável (que já trazem as categorias padrão
+// fixas no próprio HTML), sem duplicar se chamado de novo.
+function renderCategoriaSelects(){
+  ['f-cat','v-cat'].forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel) return;
+    const atual=sel.value;
+    Array.from(sel.querySelectorAll('option[data-custom]')).forEach(o=>o.remove());
+    sel.insertAdjacentHTML('beforeend', categoriasCustom.map(c=>`<option data-custom value="${c.id}">${c.emoji||'📌'} ${_esc(c.nome)}</option>`).join(''));
+    if(atual) sel.value=atual;
+  });
+}
+window.addCategoria=function(){
+  const nome=document.getElementById('new-categoria-nome').value.trim();
+  const emoji=document.getElementById('new-categoria-emoji').value.trim();
+  const cor=document.getElementById('new-categoria-cor').value || '#9ca3af';
+  if(!nome) return alert('Informe o nome da categoria.');
+  if(!categoriasCustom.find(c=>c.nome.toLowerCase()===nome.toLowerCase())) categoriasCustom.push({id:novoId(),nome,emoji,cor});
+  document.getElementById('new-categoria-nome').value='';
+  document.getElementById('new-categoria-emoji').value='';
+  renderCategoriasList();
+  renderCategoriaSelects();
+  renderAll();
+  save();
+};
+window.removeCategoria=function(i){
+  categoriasCustom.splice(i,1);
+  renderCategoriasList();
+  renderCategoriaSelects();
+  renderAll();
+  save();
+};
+
 // ── INLINE EDIT ──────────────────────────────────────────────────────────────
 function makeEditable(tdEl,currentVal,type,opts,onSave){
   if(!tdEl) return;
@@ -2875,11 +2970,13 @@ window.enviarResetLogado = async function(){
 window.openModal=function(n){
   if(n==='users') renderUsersList();
   if(n==='cartoes') renderCartoesList();
+  if(n==='categorias') renderCategoriasList();
   if(n==='settings') initSettingsModal();
   const el = document.getElementById('modal-'+n);
   if(el) el.classList.add('open');
   if(n==='conta'){ initContaModal(); }
   if(n==='ganhos'){ resetFormaGanho(); }
+  if(n==='fixas'){ renderCategoriaSelects(); }
   if(n==='variaveis'){
     const chk=document.getElementById('v-parc');
     if(chk) chk.checked=false;
@@ -2893,6 +2990,7 @@ window.openModal=function(n){
       if(!dt.value) dt.value=_hojeISO();
     }
     renderCartaoOptions();
+    renderCategoriaSelects();
   }
   if(n==='agenda'){ abrirAgendaModal(); }
   if(n==='fechar'){ abrirFecharMes(); }
@@ -3390,7 +3488,7 @@ function renderFixas(){
   const items=DB.fixas.filter(x=>x.m===cm&&x.y===cy);
   const tb=document.getElementById('tb-fixas');
   if(!items.length){tb.innerHTML=empt('📌','Nenhuma despesa fixa.');document.getElementById('fixas-total').innerHTML='';return;}
-  const catOpts=CAT_OPTS.filter(x=>['casa','carro','educacao','seguro','saude','mei','outros'].includes(x.v));
+  const catOpts=CAT_OPTS.filter(x=>['casa','carro','educacao','seguro','saude','mei','outros'].includes(x.v)).concat(categoriasCustom.map(c=>({v:c.id,l:(c.emoji||'📌')+' '+c.nome})));
   tb.innerHTML=items.map((f,i)=>`<tr id="fr-${f.id}">
     <td id="f-desc-${f.id}" onclick="openEditFixa('${f.id}')" style="cursor:pointer" title="Clique para editar">${_esc(f.desc)}</td>
     <td id="f-cat-${f.id}">${chip(f.cat)}</td>
@@ -3644,7 +3742,7 @@ function renderVariaveis(){
   </tr>`;}).join('');
   items.forEach(v=>{
     makeEditable(document.getElementById(`v-desc-${v.id}`),v.desc,'text',[],val=>{v.desc=val||v.desc;});
-    makeEditable(document.getElementById(`v-cat-${v.id}`),v.cat,'select',CAT_OPTS,val=>{v.cat=val;});
+    makeEditable(document.getElementById(`v-cat-${v.id}`),v.cat,'select',categoriaOpts(),val=>{v.cat=val;});
     makeEditable(document.getElementById(`v-cartao-${v.id}`),v.cartaoId||'','select',cartaoOpts(),val=>{v.cartaoId=val||null;});
     makeEditable(document.getElementById(`v-data-${v.id}`),v.data,'date',[],val=>{v.data=val||v.data;});
     makeEditable(document.getElementById(`v-val-${v.id}`),v.valor,'number',[],val=>{v.valor=val;});
@@ -3969,8 +4067,8 @@ function renderGerais(){
   const donutEl=document.getElementById('g-donut');
   if(!cats.length){donutEl.innerHTML='<div style="color:var(--muted);font-size:13px">Sem despesas.</div>';return;}
   let off=0;const R=50,CX=60,CY=60,CI=2*Math.PI*R;
-  const slices=cats.map(([c,v])=>{const p=v/totCat,d=CI*p,g=CI*(1-p);const s=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${CAT_CLR[c]||'#aaa'}" stroke-width="20" stroke-dasharray="${d} ${g}" stroke-dashoffset="${-off*CI}" style="transform:rotate(-90deg);transform-origin:${CX}px ${CY}px"/>`;off+=p;return s;}).join('');
-  donutEl.innerHTML=`<svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="20"/>${slices}</svg><div class="legend">${cats.slice(0,7).map(([c,v])=>`<div class="legend-item"><div class="leg-dot" style="background:${CAT_CLR[c]||'#aaa'}"></div>${CAT_MAP[c]||c}: <strong>${fmt(v)}</strong></div>`).join('')}</div>`;
+  const slices=cats.map(([c,v])=>{const p=v/totCat,d=CI*p,g=CI*(1-p);const s=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${catColor(c)}" stroke-width="20" stroke-dasharray="${d} ${g}" stroke-dashoffset="${-off*CI}" style="transform:rotate(-90deg);transform-origin:${CX}px ${CY}px"/>`;off+=p;return s;}).join('');
+  donutEl.innerHTML=`<svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="20"/>${slices}</svg><div class="legend">${cats.slice(0,7).map(([c,v])=>`<div class="legend-item"><div class="leg-dot" style="background:${catColor(c)}"></div>${catLabel(c)}: <strong>${fmt(v)}</strong></div>`).join('')}</div>`;
   const pesMap={};ganhos.forEach(g=>{const n=resolveWhoName(g);if(!pesMap[n])pesMap[n]=0;pesMap[n]+=g.valor;});
   const pes=Object.entries(pesMap);
   document.getElementById('g-pessoas').innerHTML=pes.length?pes.map(([n,v],i)=>`<div class="pessoa-row">${ava(n,avaCls[i]||'')}<div style="flex:1"><div style="font-size:13px;font-weight:600">${_esc(n)}</div></div><div style="font-size:14px;font-weight:700;color:var(--verde)">${fmt(v)}</div></div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:10px 0">Sem dados.</div>';
@@ -4853,7 +4951,7 @@ function _blocoMes(m,y){
     L.push(_padR('Descrição',26)+_padR('Categoria',16)+_padL('Valor',13)+'  Venc  Status');
     fixas.forEach(f=>L.push(
       _padR(f.desc,26)+
-      _padR((CAT_MAP[f.cat]||f.cat||'').replace(/[^\wÀ-ÿ /]/g,'').trim(),16)+
+      _padR((catLabel(f.cat)||'').replace(/[^\wÀ-ÿ /]/g,'').trim(),16)+
       _padL(fmt(f.valor),13)+'  '+
       _padR(f.venc?'d'+f.venc:'—',5)+' '+(f.status||'')
     ));
@@ -4866,7 +4964,7 @@ function _blocoMes(m,y){
     [...vars].sort((a,b)=>(a.data||'').localeCompare(b.data||'')).forEach(v=>L.push(
       _padR((v.data||'').split('-').reverse().join('/'),11)+
       _padR(v.desc,24)+
-      _padR((CAT_MAP[v.cat]||v.cat||'').replace(/[^\wÀ-ÿ /]/g,'').trim(),15)+
+      _padR((catLabel(v.cat)||'').replace(/[^\wÀ-ÿ /]/g,'').trim(),15)+
       _padL(fmt(v.valor),12)+'  '+(v.status||'A pagar')
     ));
     L.push(_padR('TOTAL',50)+_padL(fmt(tV),12));
@@ -5054,7 +5152,7 @@ function _matchStatus(str, tipo){
 function _matchCategoria(str){
   const s = _semAcento(str).replace(/[^a-z0-9]/g,'');
   if(!s) return 'outros';
-  const achou = CAT_OPTS.find(c=>{
+  const achou = categoriaOpts().find(c=>{
     const v = c.v;
     const l = _semAcento(c.l).replace(/[^a-z0-9]/g,'');
     return v===s || l===s || l.indexOf(s)>-1 || s.indexOf(v)>-1;
@@ -5420,7 +5518,7 @@ window.showSummary=function(type){
     html+=row('A pagar',fmt(fixas.filter(x=>x.status==='A pagar').reduce((a,b)=>a+b.valor,0)),'var(--laranja)');
     html+=row('Em atraso',fmt(fixas.filter(x=>x.status==='Em atraso').reduce((a,b)=>a+b.valor,0)),'#ef4444');
     const byCat={};fixas.forEach(f=>{byCat[f.cat]=(byCat[f.cat]||0)+f.valor;});
-    if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(CAT_MAP[c]||c,fmt(v)));}
+    if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(catLabel(c),fmt(v)));}
     const atrasadas=fixas.filter(x=>x.status==='Em atraso');
     if(atrasadas.length){html+='<h4 style="color:#ef4444">⚠️ Em atraso</h4>';atrasadas.forEach(f=>html+=row(_esc(f.desc),fmt(f.valor),'#ef4444'));}
   } else if(type==='variaveis'){
@@ -5431,7 +5529,7 @@ window.showSummary=function(type){
     html+=row('Pago',fmt(vars.filter(x=>x.status==='Pago').reduce((a,b)=>a+b.valor,0)),'#86efac');
     html+=row('A pagar',fmt(vars.filter(x=>(x.status||'A pagar')==='A pagar').reduce((a,b)=>a+b.valor,0)),'var(--laranja)');
     const byCat={};vars.forEach(v=>{byCat[v.cat]=(byCat[v.cat]||0)+v.valor;});
-    if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(CAT_MAP[c]||c,fmt(v)));}
+    if(Object.keys(byCat).length){html+='<h4>Por categoria</h4>';Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>html+=row(catLabel(c),fmt(v)));}
     const byCartao={};vars.forEach(v=>{if(v.cartaoId)byCartao[v.cartaoId]=(byCartao[v.cartaoId]||0)+v.valor;});
     if(Object.keys(byCartao).length){html+='<h4>Por cartão</h4>';Object.entries(byCartao).sort((a,b)=>b[1]-a[1]).forEach(([id,v])=>html+=row('💳 '+_esc(cartaoNome(id)),fmt(v)));}
   } else if(type==='economias'){
