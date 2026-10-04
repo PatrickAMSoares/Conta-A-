@@ -208,6 +208,11 @@ tr.dragging{opacity:.4;}
 .emoji-pick-btn:hover{background:var(--surface3);}
 .emoji-pick-btn.sel{border-color:var(--accent);background:rgba(190,242,100,.12);}
 
+.tutorial-dots{display:flex;justify-content:center;gap:6px;margin:18px 0 4px;}
+#modal-tutorial #tutorial-proximo,#modal-tutorial #tutorial-voltar,#modal-tutorial #tutorial-pular{white-space:nowrap;}
+.tutorial-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .2s,transform .2s;}
+.tutorial-dot.ativo{background:var(--accent);transform:scale(1.35);}
+
 .tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:420px;}
 thead th{padding:10px 13px;text-align:left;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);}
@@ -1432,6 +1437,21 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   </div>
 </div>
 
+<!-- MODAL TUTORIAL (primeiro acesso) -->
+<div class="modal-bg" id="modal-tutorial" style="z-index:10003">
+  <div class="modal" style="max-width:420px">
+    <div id="tutorial-conteudo"></div>
+    <div class="tutorial-dots" id="tutorial-dots"></div>
+    <div class="modal-btns" style="justify-content:space-between">
+      <button class="btn-cancel" id="tutorial-pular" onclick="pularTutorial()">Pular</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" id="tutorial-voltar" onclick="tutorialAnterior()" style="display:none">Voltar</button>
+        <button class="btn-add" id="tutorial-proximo" onclick="tutorialProximo()">Próximo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL GANHOS -->
 <div class="modal-bg" id="modal-ganhos">
   <div class="modal">
@@ -1732,6 +1752,15 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <div class="settings-row-body">
           <div class="settings-row-title">Categorias</div>
           <div class="settings-row-sub">Crie categorias próprias de despesas</div>
+        </div>
+        <span class="settings-chevron">›</span>
+      </div>
+
+      <div class="settings-row clickable" role="button" tabindex="0" onclick="abrirTutorial()">
+        <div class="settings-ico" style="background:rgba(96,165,250,.14);color:#60a5fa">🧭</div>
+        <div class="settings-row-body">
+          <div class="settings-row-title">Tutorial</div>
+          <div class="settings-row-sub">Veja de novo como usar o app</div>
         </div>
         <span class="settings-chevron">›</span>
       </div>
@@ -2336,6 +2365,11 @@ let telegramAtivo = false;
 let telegramChatId = '';
 let telegramDiasAntes = 2;
 
+// Tutorial de primeiro acesso — "visto" fica salvo nas preferências do plano
+// (mesmo padrão do tema/telegram), então não aparece de novo em nenhum
+// aparelho depois que a pessoa vê ou pula uma vez.
+let tutorialVisto = false;
+
 // ── TOAST ────────────────────────────────────────────────────────────────────
 let _toastTimer = null;
 window.showToast = function(msg, type){
@@ -2384,6 +2418,55 @@ window.copiarChavePix = function(){
 };
 atualizarBannerApoio();
 
+// ── TUTORIAL DE PRIMEIRO ACESSO ──────────────────────────────────────────────
+const TUTORIAL_PASSOS = [
+  { emoji:'👋', titulo:'Bem-vindo ao Conta Aí!', texto:'Organize receitas, despesas fixas e variáveis, cartões e vencimentos num só lugar — simples e no seu controle.' },
+  { emoji:'🛒', titulo:'Lance suas despesas', texto:'Em Despesas Fixas e Variáveis, registre seus gastos por categoria. Toque em qualquer campo da tabela pra editar direto, sem reabrir formulário.' },
+  { emoji:'💵', titulo:'E suas receitas', texto:'Em Receitas, lance seus ganhos e acompanhe quanto entrou por pessoa e por forma de recebimento.' },
+  { emoji:'📆', titulo:'Nunca mais esqueça um vencimento', texto:'A Agenda de Pagamentos reúne tudo que vence — inclusive faturas de cartão — e antecipa automaticamente pro dia útil anterior quando cai num fim de semana ou feriado.' },
+  { emoji:'🏷️', titulo:'Deixe do seu jeito', texto:'Em Configurações, crie categorias e cartões personalizados, convide outras pessoas pro plano e ative avisos de vencimento no Telegram.' },
+  { emoji:'🚀', titulo:'Pronto pra começar!', texto:'Você pode rever este tutorial quando quiser em Configurações → Tutorial.' }
+];
+let _tutorialPasso = 0;
+function _renderTutorialPasso(){
+  const p = TUTORIAL_PASSOS[_tutorialPasso];
+  const conteudo = document.getElementById('tutorial-conteudo');
+  if(conteudo) conteudo.innerHTML = `
+    <div style="text-align:center;padding:8px 6px 0">
+      <div style="font-size:48px;margin-bottom:14px">${p.emoji}</div>
+      <h3 style="margin:0 0 10px">${_esc(p.titulo)}</h3>
+      <p style="font-size:14px;color:var(--muted);line-height:1.6;margin:0">${_esc(p.texto)}</p>
+    </div>`;
+  const dots = document.getElementById('tutorial-dots');
+  if(dots) dots.innerHTML = TUTORIAL_PASSOS.map((_,i)=>`<span class="tutorial-dot ${i===_tutorialPasso?'ativo':''}"></span>`).join('');
+  const ultimo = _tutorialPasso === TUTORIAL_PASSOS.length - 1;
+  const voltar = document.getElementById('tutorial-voltar');
+  if(voltar) voltar.style.display = _tutorialPasso===0 ? 'none' : 'inline-flex';
+  const proximo = document.getElementById('tutorial-proximo');
+  if(proximo) proximo.textContent = ultimo ? 'Vamos lá! 🎉' : 'Próximo';
+  const pular = document.getElementById('tutorial-pular');
+  if(pular) pular.style.visibility = ultimo ? 'hidden' : 'visible';
+}
+window.abrirTutorial = function(){
+  _tutorialPasso = 0;
+  _renderTutorialPasso();
+  const el = document.getElementById('modal-tutorial');
+  if(el) el.classList.add('open');
+};
+window.tutorialProximo = function(){
+  if(_tutorialPasso < TUTORIAL_PASSOS.length - 1){ _tutorialPasso++; _renderTutorialPasso(); }
+  else _fecharTutorial();
+};
+window.tutorialAnterior = function(){
+  if(_tutorialPasso > 0){ _tutorialPasso--; _renderTutorialPasso(); }
+};
+window.pularTutorial = function(){ _fecharTutorial(); };
+function _fecharTutorial(){
+  tutorialVisto = true;
+  closeModal('tutorial');
+  save();
+}
+
 function toSlugCompare(str){ return str.trim(); }
 
 // ── SYNC STATUS ──────────────────────────────────────────────────────────────
@@ -2402,7 +2485,8 @@ function getPrefs() {
     iconNeg: window.SELECTED_NEG || 'svg_neg',
     telegramAtivo: !!telegramAtivo,
     telegramChatId: telegramChatId || '',
-    telegramDiasAntes: Number.isFinite(telegramDiasAntes) ? telegramDiasAntes : 2
+    telegramDiasAntes: Number.isFinite(telegramDiasAntes) ? telegramDiasAntes : 2,
+    tutorialVisto: !!tutorialVisto
   };
 }
 
@@ -2451,6 +2535,7 @@ function applyPrefs(prefs) {
   telegramAtivo = !!prefs.telegramAtivo;
   telegramChatId = prefs.telegramChatId || '';
   telegramDiasAntes = Number.isFinite(prefs.telegramDiasAntes) ? prefs.telegramDiasAntes : 2;
+  tutorialVisto = !!prefs.tutorialVisto;
 }
 
 // ── PERSISTÊNCIA ─────────────────────────────────────────────────────────────
@@ -2715,7 +2800,7 @@ function resetAppState(){
   window._unsubscribe && window._unsubscribe();
   window._unsubscribe = null;
   DOC_REF = null; currentUID = '';
-  planTitle = ''; currentUser = ''; users = []; cartoes = []; categoriasCustom = [];
+  planTitle = ''; currentUser = ''; users = []; cartoes = []; categoriasCustom = []; tutorialVisto = false;
   ['ganhos','fixas','variaveis','economias','notas'].forEach(k => DB[k] = []);
   cm = new Date().getMonth();
   cy = new Date().getFullYear();
@@ -2763,6 +2848,7 @@ async function startApp(user){
     subscribeFirebase();
     hideOverlay();
     renderAll();
+    if(!tutorialVisto) setTimeout(abrirTutorial, 500);
   } catch(e) {
     console.error('Load error:', e);
     const msg = e && e.code === 'permission-denied'
@@ -3172,7 +3258,10 @@ window.closeModal=function(n){
   if(el) el.classList.remove('open');
   if(n==='agenda'){ const h=document.getElementById('ag-id'); if(h) h.value=''; }
 };
-document.querySelectorAll('.modal-bg').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+document.querySelectorAll('.modal-bg').forEach(m=>{
+  if(m.id==='modal-tutorial') return; // só fecha pelos botões, não clicando fora
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
 
 // ── FORMA DE RECEBIMENTO ─────────────────────────────────────────────────────
 const FORMA_LBL = { especie:'💵 Espécie', conta:'🏦 Conta / Pix' };
