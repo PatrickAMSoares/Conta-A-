@@ -195,9 +195,6 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-mv{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;width:20px;height:16px;line-height:1;font-size:9px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
 .btn-mv:hover{background:var(--surface3);}
 .btn-mv:disabled{opacity:.3;cursor:default;}
-.drag-handle{display:inline-block;cursor:grab;color:var(--muted);font-size:15px;padding:2px 7px;touch-action:none;user-select:none;vertical-align:middle;margin-right:2px;}
-.drag-handle:active{cursor:grabbing;}
-tr.dragging{opacity:.4;}
 
 .emoji-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;max-height:140px;overflow-y:auto;padding:2px;}
 .emoji-pick-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -2508,61 +2505,6 @@ window.moverItem = function(lista, id, direcao){
   renderAll(); save();
 };
 
-// Arrastar linhas (mouse ou touch) pra reordenar — usa Pointer Events em vez
-// do "draggable" nativo do HTML5, que não funciona bem em telas de toque.
-// Grava a nova ordem no mesmo campo "ordem" que os botões ▲▼ já usam.
-function _aplicarNovaOrdem(lista, idsNaOrdemVisual){
-  idsNaOrdemVisual.forEach((id,i)=>{
-    const item = DB[lista].find(x=>x.id===id);
-    if(item) item.ordem = i;
-  });
-  ordenarLista(lista);
-  renderAll(); save();
-}
-function _linhaAposPonto(tbody, y){
-  const linhas = Array.from(tbody.querySelectorAll('tr[data-id]:not(.dragging)'));
-  for(const tr of linhas){
-    const box = tr.getBoundingClientRect();
-    if(y < box.top + box.height/2) return tr;
-  }
-  return null;
-}
-function habilitarArrastar(tbodyId, lista){
-  const tbody = document.getElementById(tbodyId);
-  if(!tbody) return;
-  let dragEl = null;
-  // Fase de captura: evita que o clique de soltar a alça chegue até a célula
-  // (algumas têm clique pra entrar em modo de edição) e acione isso à toa.
-  tbody.addEventListener('click', e=>{ if(e.target.closest('.drag-handle')) e.stopPropagation(); }, true);
-  tbody.addEventListener('pointerdown', e=>{
-    const handle = e.target.closest('.drag-handle');
-    if(!handle) return;
-    const tr = handle.closest('tr[data-id]');
-    if(!tr) return;
-    dragEl = tr;
-    tr.classList.add('dragging');
-    try{ tr.setPointerCapture(e.pointerId); }catch(err){}
-    e.preventDefault();
-  });
-  tbody.addEventListener('pointermove', e=>{
-    if(!dragEl) return;
-    e.preventDefault();
-    const alvo = _linhaAposPonto(tbody, e.clientY);
-    if(alvo !== dragEl) tbody.insertBefore(dragEl, alvo);
-  });
-  function soltar(e){
-    if(!dragEl) return;
-    dragEl.classList.remove('dragging');
-    try{ dragEl.releasePointerCapture(e.pointerId); }catch(err){}
-    const idsNaOrdem = Array.from(tbody.querySelectorAll('tr[data-id]')).map(tr=>tr.dataset.id);
-    dragEl = null;
-    _aplicarNovaOrdem(lista, idsNaOrdem);
-  }
-  tbody.addEventListener('pointerup', soltar);
-  tbody.addEventListener('pointercancel', soltar);
-}
-['ganhos','fixas','variaveis'].forEach(lista=>habilitarArrastar('tb-'+lista, lista));
-
 async function carregarListas(uid){
   for (var i = 0; i < LISTAS.length; i++){
     var lista = LISTAS[i];
@@ -3215,12 +3157,12 @@ function renderGanhos(){
     const cls = FORMA_CLS[g.forma] || 'f-vazio';
     const lbl = FORMA_LBL[g.forma] || 'Definir';
     const tip = g.forma ? 'Clique para alternar' : 'Não informado — clique para definir';
-    return `<tr id="gr-${g.id}" data-id="${g.id}">
+    return `<tr id="gr-${g.id}">
       <td id="g-desc-${g.id}">${_esc(g.desc)}</td>
       <td id="g-val-${g.id}" style="font-weight:700">${fmt(g.valor)}</td>
       <td><span class="forma-tag ${cls}" role="button" tabindex="0" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
       <td><span class="badge ${ST_CLS[g.status]||''}" role="button" tabindex="0" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
-      <td><span class="drag-handle" title="Arraste para reordenar">⠿</span>${_botoesMover('ganhos',g.id,i,items.length)}<button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
+      <td>${_botoesMover('ganhos',g.id,i,items.length)}<button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -3602,7 +3544,7 @@ function renderFixas(){
   const tb=document.getElementById('tb-fixas');
   if(!items.length){tb.innerHTML=empt('📌','Nenhuma despesa fixa.');document.getElementById('fixas-total').innerHTML='';return;}
   const catOpts=CAT_OPTS.filter(x=>['casa','carro','educacao','seguro','saude','mei','outros'].includes(x.v)).concat(categoriasCustom.map(c=>({v:c.id,l:(c.emoji||'📌')+' '+c.nome})));
-  tb.innerHTML=items.map((f,i)=>`<tr id="fr-${f.id}" data-id="${f.id}">
+  tb.innerHTML=items.map((f,i)=>`<tr id="fr-${f.id}">
     <td id="f-desc-${f.id}" onclick="openEditFixa('${f.id}')" style="cursor:pointer" title="Clique para editar">${_esc(f.desc)}</td>
     <td id="f-cat-${f.id}">${chip(f.cat)}</td>
     <td id="f-val-${f.id}" style="font-weight:700">${fmt(f.valor)}</td>
@@ -3610,7 +3552,6 @@ function renderFixas(){
     <td style="font-size:12px;color:${f.dataPago?'#86efac':'var(--muted2)'}">${f.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[f.status]||''}" role="button" tabindex="0" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
     <td>
-      <span class="drag-handle" title="Arraste para reordenar">⠿</span>
       ${_botoesMover('fixas',f.id,i,items.length)}
       <button class="btn-ag ${f.agendaId?'linked':''}" onclick="toggleAgendaLink('fixa','${f.id}')" title="${f.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${f.agendaId?'📆 ✓':'📆'}</button>
       <button class="btn-del" onclick="delFixa('${f.id}')">✕</button>
@@ -3840,7 +3781,7 @@ function renderVariaveis(){
     const botaoAgenda = cobertoPorFatura
       ? `<span class="btn-ag" style="opacity:.55;cursor:default" title="Incluída automaticamente na fatura do cartão ${_esc(cartaoVinc.nome)}">💳</span>`
       : `<button class="btn-ag ${v.agendaId?'linked':''}" onclick="toggleAgendaLink('variavel','${v.id}')" title="${v.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${v.agendaId?'📆 ✓':'📆'}</button>`;
-    return `<tr id="vr-${v.id}" data-id="${v.id}">
+    return `<tr id="vr-${v.id}">
     <td><span id="v-desc-${v.id}">${_esc(v.desc)}</span>${tag}</td>
     <td id="v-cat-${v.id}">${chip(v.cat)}</td>
     <td id="v-cartao-${v.id}" style="color:var(--muted);font-size:12px">${v.cartaoId?('💳 '+_esc(cartaoNome(v.cartaoId))):'–'}</td>
@@ -3849,7 +3790,6 @@ function renderVariaveis(){
     <td style="font-size:12px;color:${v.dataPago?'#86efac':'var(--muted2)'}">${v.dataPago||'–'}</td>
     <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
     <td>
-      <span class="drag-handle" title="Arraste para reordenar">⠿</span>
       ${_botoesMover('variaveis',v.id,i,items.length)}
       ${botaoAgenda}
       <button class="btn-del" onclick="delVariavel('${v.id}')">✕</button>
