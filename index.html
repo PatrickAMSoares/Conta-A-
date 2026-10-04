@@ -191,10 +191,6 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .btn-ag{background:transparent;color:var(--azul);font-size:11px;border:1px solid rgba(91,156,246,.3);border-radius:7px;padding:4px 8px;cursor:pointer;margin-right:4px;}
 .btn-ag:hover{background:rgba(91,156,246,.1);}
 .btn-ag.linked{color:var(--verde);border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
-.btn-mv-wrap{display:inline-flex;flex-direction:column;gap:2px;margin-right:4px;vertical-align:middle;}
-.btn-mv{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;width:20px;height:16px;line-height:1;font-size:9px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;}
-.btn-mv:hover{background:var(--surface3);}
-.btn-mv:disabled{opacity:.3;cursor:default;}
 .drag-handle{display:inline-block;cursor:grab;color:var(--muted);font-size:15px;padding:2px 7px;touch-action:none;user-select:none;vertical-align:middle;margin-right:2px;}
 .drag-handle:active{cursor:grabbing;}
 tr.dragging{opacity:.4;}
@@ -2492,25 +2488,9 @@ function ordenarLista(lista){
   }
 }
 
-// Move um lançamento uma posição pra cima/baixo dentro do mês em exibição,
-// e renumera a ordem de todos os itens daquele mês (0,1,2…) pra garantir
-// uma posição bem definida que sobrevive a um recarregamento da página.
-window.moverItem = function(lista, id, direcao){
-  const doMes = DB[lista].filter(x=>x.m===cm && x.y===cy);
-  const idx = doMes.findIndex(x=>x.id===id);
-  const alvo = idx + direcao;
-  if(idx<0 || alvo<0 || alvo>=doMes.length) return;
-  const tmp = doMes[idx];
-  doMes[idx] = doMes[alvo];
-  doMes[alvo] = tmp;
-  doMes.forEach((item,i)=>{ item.ordem = i; });
-  ordenarLista(lista);
-  renderAll(); save();
-};
-
 // Arrastar linhas (mouse ou touch) pra reordenar — usa Pointer Events em vez
 // do "draggable" nativo do HTML5, que não funciona bem em telas de toque.
-// Grava a nova ordem no mesmo campo "ordem" que os botões ▲▼ já usam.
+// Grava a nova ordem no campo "ordem" de cada item.
 function _aplicarNovaOrdem(lista, idsNaOrdemVisual){
   idsNaOrdemVisual.forEach((id,i)=>{
     const item = DB[lista].find(x=>x.id===id);
@@ -3194,14 +3174,6 @@ window.cycleGStatus=function(id){
   renderAll();save();
 };
 
-// Botões ▲▼ pra reordenar manualmente a linha dentro do mês (ver moverItem).
-function _botoesMover(lista, id, idx, total){
-  return `<span class="btn-mv-wrap">
-    <button class="btn-mv" title="Mover para cima" onclick="moverItem('${lista}','${id}',-1)" ${idx===0?'disabled':''}>▲</button>
-    <button class="btn-mv" title="Mover para baixo" onclick="moverItem('${lista}','${id}',1)" ${idx===total-1?'disabled':''}>▼</button>
-  </span>`;
-}
-
 function renderGanhos(){
   const items=DB.ganhos.filter(x=>x.m===cm&&x.y===cy);
   const tb=document.getElementById('tb-ganhos');
@@ -3220,7 +3192,7 @@ function renderGanhos(){
       <td id="g-val-${g.id}" style="font-weight:700">${fmt(g.valor)}</td>
       <td><span class="forma-tag ${cls}" role="button" tabindex="0" title="${tip}" onclick="cycleGForma('${g.id}')">${lbl}</span></td>
       <td><span class="badge ${ST_CLS[g.status]||''}" role="button" tabindex="0" onclick="cycleGStatus('${g.id}')">${g.status}</span></td>
-      <td><span class="drag-handle" title="Arraste para reordenar">⠿</span>${_botoesMover('ganhos',g.id,i,items.length)}<button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
+      <td><span class="drag-handle" title="Arraste para reordenar">⠿</span><button class="btn-del" onclick="delGanho('${g.id}')">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -3611,7 +3583,6 @@ function renderFixas(){
     <td><span class="badge ${ST_CLS[f.status]||''}" role="button" tabindex="0" onclick="cycleFStatus('${f.id}')">${f.status}</span></td>
     <td>
       <span class="drag-handle" title="Arraste para reordenar">⠿</span>
-      ${_botoesMover('fixas',f.id,i,items.length)}
       <button class="btn-ag ${f.agendaId?'linked':''}" onclick="toggleAgendaLink('fixa','${f.id}')" title="${f.agendaId?'Remover da Agenda':'Adicionar à Agenda'}">${f.agendaId?'📆 ✓':'📆'}</button>
       <button class="btn-del" onclick="delFixa('${f.id}')">✕</button>
     </td>
@@ -3850,7 +3821,6 @@ function renderVariaveis(){
     <td><span class="badge ${ST_CLS[v.status||'A pagar']||''}" role="button" tabindex="0" onclick="cycleVStatus('${v.id}')">${v.status||'A pagar'}</span></td>
     <td>
       <span class="drag-handle" title="Arraste para reordenar">⠿</span>
-      ${_botoesMover('variaveis',v.id,i,items.length)}
       ${botaoAgenda}
       <button class="btn-del" onclick="delVariavel('${v.id}')">✕</button>
     </td>

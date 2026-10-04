@@ -3,7 +3,7 @@
  * Testes de arrastar (drag-and-drop) as linhas de Receitas, Despesas Fixas
  * e Despesas Variáveis pela alça "⠿" — usa Pointer Events (funciona com
  * mouse e touch, ao contrário do "draggable" nativo do HTML5) e grava a
- * nova posição no mesmo campo "ordem" que os botões ▲▼ já usam.
+ * nova posição no campo "ordem" de cada item.
  */
 
 const assert = require('assert');
@@ -97,17 +97,15 @@ async function main() {
     await page.close();
   });
 
-  await test('os botões ▲▼ continuam funcionando junto com a alça de arrastar', async () => {
+  await test('ordenarLista ordena Despesas Variáveis pelo campo "ordem", não mais por data', async () => {
     const page = await newPage(browser, baseUrl);
     await page.evaluate(() => {
-      DB.ganhos.push({ id: 'g1', desc: 'Salário', cat: 'salario', valor: 100, status: 'A receber', m: cm, y: cy, ordem: 0 });
-      DB.ganhos.push({ id: 'g2', desc: 'Freela', cat: 'extra', valor: 50, status: 'A receber', m: cm, y: cy, ordem: 1 });
-      renderAll();
+      DB.variaveis.push({ id: 'v1', desc: 'Lançado depois', valor: 10, status: 'A pagar', m: cm, y: cy, data: '2026-01-01', ordem: 1 });
+      DB.variaveis.push({ id: 'v2', desc: 'Lançado antes', valor: 20, status: 'A pagar', m: cm, y: cy, data: '2026-12-31', ordem: 0 });
+      ordenarLista('variaveis');
     });
-    await page.click('text=Receitas');
-    await page.locator('#gr-g1 .btn-mv-wrap button[title="Mover para baixo"]').click();
-    const idsNaOrdem = await page.evaluate(() => Array.from(document.querySelectorAll('#tb-ganhos tr')).map((tr) => tr.id));
-    assert.deepStrictEqual(idsNaOrdem, ['gr-g2', 'gr-g1']);
+    const idsNaOrdem = await page.evaluate(() => DB.variaveis.map((v) => v.id));
+    assert.deepStrictEqual(idsNaOrdem, ['v2', 'v1'], 'deveria respeitar "ordem" (manual) em vez da data da despesa');
     await page.close();
   });
 
