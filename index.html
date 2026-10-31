@@ -74,7 +74,8 @@
 body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%;}
 
 /* SYNC STATUS */
-.sync-status{position:fixed;bottom:16px;right:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;z-index:999;transition:all .3s;box-shadow:0 4px 20px rgba(0,0,0,.4);}
+.sync-status{position:fixed;bottom:16px;right:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;z-index:999;transition:opacity .3s,transform .3s;box-shadow:0 4px 20px rgba(0,0,0,.4);}
+.sync-status.sync-hidden{opacity:0;transform:translateY(6px);pointer-events:none;}
 .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);transition:background .3s;}
 .sync-dot.online{background:var(--verde);animation:pulse 2s infinite;}
 .sync-dot.syncing{background:var(--laranja);animation:spin-dot 1s linear infinite;}
@@ -1210,11 +1211,11 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <div><div class="table-title">Receitas do mês</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('ganhos')">+ Adicionar</button>
   </div>
+  <div id="ganhos-total" style="text-align:right;margin-bottom:12px;font-size:13px;color:var(--muted)"></div>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Descrição</th><th>Valor</th><th>Forma</th><th>Status</th><th></th></tr></thead>
     <tbody id="tb-ganhos"></tbody>
   </table></div>
-  <div id="ganhos-total" style="text-align:right;margin-top:10px;font-size:13px;color:var(--muted)"></div>
 </div>
 
 <!-- FIXAS -->
@@ -1224,11 +1225,11 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <div><div class="table-title">Despesas Fixas</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('fixas')">+ Adicionar</button>
   </div>
+  <div id="fixas-total" style="text-align:right;margin-bottom:12px;font-size:13px;color:var(--muted)"></div>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Venc.</th><th>Pago em</th><th>Status</th><th></th></tr></thead>
     <tbody id="tb-fixas"></tbody>
   </table></div>
-  <div id="fixas-total" style="text-align:right;margin-top:10px;font-size:13px;color:var(--muted)"></div>
 </div>
 
 <!-- VARIÁVEIS -->
@@ -1237,12 +1238,12 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
     <div><div class="table-title">Despesas Variáveis</div><div class="table-hint">Toque em qualquer campo para editar</div></div>
     <button class="btn-add" onclick="openModal('variaveis')">+ Adicionar</button>
   </div>
+  <div id="variaveis-total" style="text-align:right;margin-bottom:10px;font-size:13px;color:var(--muted)"></div>
   <div id="variaveis-por-cartao" style="margin-bottom:12px"></div>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Descrição</th><th>Categoria</th><th>Cartão</th><th>Data</th><th>Valor</th><th>Pago em</th><th>Status</th><th></th></tr></thead>
     <tbody id="tb-variaveis"></tbody>
   </table></div>
-  <div id="variaveis-total" style="text-align:right;margin-top:10px;font-size:13px;color:var(--muted)"></div>
 </div>
 
 <!-- INVESTIMENTOS -->
@@ -2470,11 +2471,24 @@ function _fecharTutorial(){
 function toSlugCompare(str){ return str.trim(); }
 
 // ── SYNC STATUS ──────────────────────────────────────────────────────────────
+// O selo "Sincronizado" não fica fixo na tela: some sozinho 5s depois de
+// confirmar a sincronização. Outros estados (salvando, erro, desconectado)
+// continuam visíveis, já que são informações que a pessoa pode precisar ver.
+let _syncHideTimeout = null;
 function setSyncStatus(state, label) {
+  const badge = document.getElementById('sync-status');
   const dot = document.getElementById('sync-dot');
   const lbl = document.getElementById('sync-label');
   if(dot) dot.className = 'sync-dot ' + state;
   if(lbl) lbl.textContent = label;
+  if(_syncHideTimeout){ clearTimeout(_syncHideTimeout); _syncHideTimeout = null; }
+  if(badge) badge.classList.remove('sync-hidden');
+  if(state === 'online' && badge){
+    _syncHideTimeout = setTimeout(function(){
+      badge.classList.add('sync-hidden');
+      _syncHideTimeout = null;
+    }, 5000);
+  }
 }
 
 // ── PREFS ────────────────────────────────────────────────────────────────────
@@ -3994,11 +4008,14 @@ function renderVariaveis(){
   const pcEl=document.getElementById('variaveis-por-cartao');
   if(pcEl){
     const porCartao={};
-    items.forEach(v=>{ if(v.cartaoId) porCartao[v.cartaoId]=(porCartao[v.cartaoId]||0)+v.valor; });
+    let semCartao=0;
+    items.forEach(v=>{ if(v.cartaoId) porCartao[v.cartaoId]=(porCartao[v.cartaoId]||0)+v.valor; else semCartao+=v.valor; });
     const entradas=Object.entries(porCartao);
-    pcEl.innerHTML = entradas.length ? `<div class="g-card"><h4>💳 Por cartão</h4>${entradas.sort((a,b)=>b[1]-a[1]).map(([id,v])=>
+    const linhasCartao = entradas.sort((a,b)=>b[1]-a[1]).map(([id,v])=>
       `<div class="pessoa-row"><div style="flex:1;font-size:13px;font-weight:600">${_esc(cartaoNome(id))}</div><div style="font-size:14px;font-weight:700;color:#f87171">${fmt(v)}</div></div>`
-    ).join('')}</div>` : '';
+    ).join('');
+    const linhaSemCartao = `<div class="pessoa-row"><div style="flex:1;font-size:13px;font-weight:600;color:var(--muted)">Sem cartão</div><div style="font-size:14px;font-weight:700;color:var(--muted)">${fmt(semCartao)}</div></div>`;
+    pcEl.innerHTML = `<div class="g-card"><h4>💳 Por cartão</h4>${linhasCartao}${linhaSemCartao}</div>`;
   }
 }
 
