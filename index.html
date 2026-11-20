@@ -1147,6 +1147,7 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
   </div>
   <div class="topbar-right">
     <div class="user-pills" id="user-pills" style="display:none"></div>
+    <button id="btn-lancar-texto" onclick="openModal('lancar-texto')" title="Lançar por texto" aria-label="Lançar por texto" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:16px;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✨</button>
     <button onclick="openModal('settings')" title="Configurações" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:16px;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">⚙️</button>
     <div class="month-sel">
       <button onclick="changeMonth(-1)">‹</button>
@@ -1450,6 +1451,26 @@ tbody tr:hover{background:rgba(181,214,61,.045);}
         <button class="btn-add" id="tutorial-proximo" onclick="tutorialProximo()">Próximo</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL LANÇAR POR TEXTO (interpretador local — não grava nada sozinho) -->
+<div class="modal-bg" id="modal-lancar-texto">
+  <div class="modal">
+    <h3>✨ Lançar por texto</h3>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:10px">
+      Escreva o lançamento do seu jeito. O formulário abre já preenchido para você conferir antes de salvar.
+    </div>
+    <div class="fr"><textarea id="lt-texto" rows="3" placeholder="Ex: gastei 50 no mercado no nubank" style="width:100%;resize:vertical"></textarea></div>
+    <div style="font-size:11.5px;color:var(--muted2);line-height:1.6;margin-bottom:6px">
+      Exemplos:<br>
+      • gastei 120 no posto ontem cartão inter<br>
+      • comprei tv de 1200 em 10x no nubank<br>
+      • recebi 3000 de salário no pix<br>
+      • conta de luz 180 fixa vence dia 10
+    </div>
+    <div id="lt-erro" style="font-size:12px;color:#f87171;min-height:16px"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeModal('lancar-texto')">Cancelar</button><button class="btn-add" onclick="lancarPorTexto()">Preencher</button></div>
   </div>
 </div>
 
@@ -3229,6 +3250,13 @@ window.enviarResetLogado = async function(){
   }
 };
 window.openModal=function(n){
+  // Aviso "preenchido a partir do texto" só vale para o preenchimento que o
+  // criou — some sempre que qualquer formulário é aberto de novo.
+  document.querySelectorAll('.lt-aviso').forEach(e=>e.remove());
+  if(n==='lancar-texto'){
+    const e=document.getElementById('lt-erro'); if(e) e.textContent='';
+    setTimeout(()=>{const t=document.getElementById('lt-texto'); if(t) t.focus();},50);
+  }
   if(n==='users') renderUsersList();
   if(n==='cartoes') renderCartoesList();
   if(n==='categorias'){ renderCategoriasList(); resetCategoriaForm(); }
@@ -5040,6 +5068,280 @@ function renderPanorama(){
   if(cardMedia) cardMedia.textContent = fmt(totalGeral / mesesComDados);
   if(cardQtd)   cardQtd.textContent = secFixas.ordem.length + secVar.ordem.length;
 }
+
+// ── LANÇAR POR TEXTO (interpretador local — nada sai do aparelho) ────────────
+// Transforma uma frase ("gastei 50 no mercado no nubank") nos campos de um
+// lançamento e abre o formulário de sempre já preenchido. NÃO grava nada:
+// quem salva continua sendo o botão "Adicionar" do formulário
+// (saveGanho/saveVariavel/saveFixa), com as mesmas validações de sempre.
+// Não usa IA externa nem rede — são regras simples em português.
+function _ltNorm(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+const _LT_CONECTORES = new Set(['de','do','da','dos','das','no','na','nos','nas','em','com','o','a','os','as','um','uma','pra','pro','para','por','pelo','pela','e','que','foi','foram','meu','minha','ao','à']);
+const _LT_VERBOS = new Set(['gastei','paguei','comprei','recebi','ganhei','lancar','lanca','lance','coloca','coloque','adiciona','adicione','anota','anote','registra','registre','despesa','receita','variavel','fixa','fixo','mensal','reais','real','conto','contos','r$','cartao','credito','pix','dinheiro','especie','transferencia','ted','deposito','vista','parcelado','parcelada','pago','paga','atrasado','atrasada','atraso','quitei','recebido','recebida']);
+const _LT_CAT_PALAVRAS = {
+  mercado:['mercado','supermercado','feira','padaria','acougue','hortifruti','sacolao','atacadao','mercearia'],
+  carro:['posto','gasolina','combustivel','etanol','alcool','diesel','mecanico','oficina','estacionamento','pedagio','ipva','licenciamento','pneu','carro','moto','lavacao','lava-jato'],
+  saude:['farmacia','remedio','remedios','medico','consulta','dentista','exame','exames','hospital','psicologo','academia'],
+  educacao:['escola','curso','faculdade','livro','livros','material','apostila','mensalidade'],
+  casa:['aluguel','luz','energia','agua','internet','condominio','gas','celesc','casan','iptu','faxina','diarista','movel','moveis'],
+  seguro:['seguro'],
+  mei:['das','mei','contador'],
+  compras:['loja','shopping','roupa','roupas','sapato','tenis','presente','amazon','shopee','magalu','eletronico','tv','televisao','celular','notebook','fone']
+};
+const _LT_RECEITA = new Set(['recebi','receber','recebido','recebida','salario','ganhei','renda','rendimento','rendimentos','freela','freelance','reembolso','vendi','pagamento-recebido','adiantamento','bonus','comissao','13o']);
+
+function _ltValor(n){
+  // aceita: 50 | 50,90 | 1.234,56 | 12.50 | r$50
+  const s = n.replace(/^r\$/,'');
+  if(/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s) || /^\d+(,\d{1,2})?$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  if(/^\d+\.\d{1,2}$/.test(s)) return parseFloat(s);
+  return null;
+}
+function _ltISO(y,m,d){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+
+// ctx: { cartoes, categoriasCustom, hoje: Date, mes, ano } — mes/ano = mês aberto no app.
+function interpretarLancamento(texto, ctx){
+  ctx = ctx || {};
+  const hoje = ctx.hoje || new Date();
+  const mes = (ctx.mes != null) ? ctx.mes : hoje.getMonth();
+  const ano = (ctx.ano != null) ? ctx.ano : hoje.getFullYear();
+  const r = { tipo:'variavel', desc:'', valor:null, data:null, dataExplicita:false, venc:null,
+              status:null, forma:null, cartaoId:null, cat:null, parcQtd:null, parcModo:null, avisos:[] };
+
+  const orig = String(texto||'').trim().split(/\s+/).filter(Boolean)
+    .map(t=>t.replace(/^[("'“]+|[)"'”.,;:!?]+$/g,''))
+    .filter(Boolean);
+  const tk = orig.map(_ltNorm);
+  const usado = tk.map(()=>false);
+  const has = w => tk.some((t,i)=>t===w);
+
+  // 1) Parcelas: "10x", "10x de 120", "em 3 vezes", "3 parcelas"
+  let valorIdx = -1;
+  for(let i=0;i<tk.length;i++){
+    let m = tk[i].match(/^(\d{1,3})x$/);
+    if(m){
+      r.parcQtd = parseInt(m[1],10); usado[i]=true;
+      if(tk[i+1]==='de' && i+2<tk.length && _ltValor(tk[i+2])!=null){
+        r.parcModo='parcela'; usado[i+1]=true; valorIdx=i+2;
+      }
+      break;
+    }
+    if(/^\d{1,3}$/.test(tk[i]) && (tk[i+1]==='vezes' || tk[i+1]==='parcelas')){
+      r.parcQtd = parseInt(tk[i],10); usado[i]=usado[i+1]=true; break;
+    }
+  }
+  if(r.parcQtd!=null && !r.parcModo) r.parcModo = has('cada') || has('parcela') ? 'parcela' : 'total';
+
+  // 2) Datas e vencimento
+  let dia = null;
+  for(let i=0;i<tk.length;i++){
+    if(usado[i]) continue;
+    const t = tk[i];
+    const rel = {hoje:0, ontem:-1, anteontem:-2, amanha:1}[t];
+    if(rel!==undefined){
+      const d = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()+rel);
+      r.data = _ltISO(d.getFullYear(), d.getMonth(), d.getDate()); r.dataExplicita = true; usado[i]=true; continue;
+    }
+    if((t==='dia' || t==='vence' || t==='vencimento') && /^\d{1,2}$/.test(tk[i+1]||'')){
+      const n = parseInt(tk[i+1],10);
+      if(n>=1 && n<=31){ dia = n; usado[i]=usado[i+1]=true; if(t!=='dia') r.venc=n; i++; continue; }
+    }
+    if((t==='vence' || t==='vencimento') && tk[i+1]==='dia' && /^\d{1,2}$/.test(tk[i+2]||'')){
+      const n = parseInt(tk[i+2],10);
+      if(n>=1 && n<=31){ dia = n; r.venc = n; usado[i]=usado[i+1]=usado[i+2]=true; i+=2; continue; }
+    }
+    const dm = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if(dm){
+      const d=parseInt(dm[1],10), m=parseInt(dm[2],10)-1;
+      let y = dm[3] ? parseInt(dm[3],10) : ano; if(y<100) y+=2000;
+      if(d>=1 && d<=31 && m>=0 && m<=11){ r.data=_ltISO(y,m,Math.min(d,new Date(y,m+1,0).getDate())); r.dataExplicita=true; usado[i]=true; }
+    }
+  }
+  if(dia!=null && !r.data){
+    r.data = _ltISO(ano, mes, Math.min(dia, new Date(ano, mes+1, 0).getDate()));
+    r.dataExplicita = true;
+  }
+
+  // 3) Valor: preferência para "r$ 50", "50 reais"; senão o primeiro número que sobrou
+  if(valorIdx<0){
+    const soltos=[];
+    for(let i=0;i<tk.length;i++){
+      if(usado[i]) continue;
+      if(_ltValor(tk[i])==null) continue;
+      const marcado = tk[i].startsWith('r$') || tk[i-1]==='r$' || ['reais','real','conto','contos','mil'].includes(tk[i+1]);
+      if(marcado){ valorIdx=i; break; }
+      soltos.push(i);
+    }
+    if(valorIdx<0 && soltos.length){
+      // mais de um número solto ("2 pizzas 80"): o maior costuma ser o valor
+      valorIdx = soltos.reduce((a,b)=>_ltValor(tk[b])>_ltValor(tk[a])?b:a);
+      if(soltos.length>1) r.avisos.push('Havia mais de um número no texto — usei ' + _ltValor(tk[valorIdx]).toLocaleString('pt-BR') + ' como valor. Confira.');
+    }
+  }
+  if(valorIdx>=0){
+    r.valor = _ltValor(tk[valorIdx]); usado[valorIdx]=true;
+    if(tk[valorIdx+1]==='mil'){ r.valor *= 1000; usado[valorIdx+1]=true; }
+  }
+
+  // 4) Cartão: pelo nome cadastrado (inteiro ou a primeira palavra)
+  const juntos = ' '+tk.join(' ')+' ';
+  let melhor = null;
+  (ctx.cartoes||[]).forEach(c=>{
+    const nome = _ltNorm(c.nome).trim();
+    if(!nome) return;
+    const candidatos = [nome];
+    const pw = nome.split(/\s+/)[0];
+    if(pw!==nome && pw.length>=3) candidatos.push(pw);
+    for(const cand of candidatos){
+      if(juntos.includes(' '+cand+' ')){
+        if(!melhor || cand.length>melhor.cand.length) melhor = {c, cand};
+        break;
+      }
+    }
+  });
+  if(melhor){
+    r.cartaoId = melhor.c.id;
+    const partes = melhor.cand.split(/\s+/);
+    for(let i=0;i<=tk.length-partes.length;i++){
+      if(partes.every((p,j)=>tk[i+j]===p)){ partes.forEach((p,j)=>usado[i+j]=true); break; }
+    }
+  } else if(has('cartao') || has('credito')){
+    r.avisos.push('Não encontrei o cartão citado entre os cadastrados — escolha no campo Cartão.');
+  }
+
+  // 5) Tipo do lançamento
+  if(tk.some(t=>_LT_RECEITA.has(t)) && !has('paguei') && !has('gastei') && !has('comprei')) r.tipo='ganho';
+  else if(has('fixa') || has('fixo') || has('mensal') || r.venc!=null || (has('todo') && (has('mes')))) r.tipo='fixa';
+
+  // 6) Status e forma de recebimento
+  if(r.tipo==='ganho'){
+    if(has('receber') || has('vou')) r.status='A receber';
+    else if(has('recebi') || has('recebido') || has('recebida')) r.status='Recebido';
+    if(['pix','conta','transferencia','ted','deposito','banco'].some(has)) r.forma='conta';
+    else if(['dinheiro','especie','maos','vivo'].some(has)) r.forma='especie';
+  } else {
+    if(has('atrasado') || has('atrasada') || has('atraso')) r.status='Em atraso';
+    else if(has('pagar') || has('vou')) r.status='A pagar';
+    else if(has('paguei') || has('pago') || has('paga') || has('quitei')) r.status='Pago';
+  }
+  if(has('todo') && has('mes')){
+    tk.forEach((t,i)=>{ if((t==='todo' && tk[i+1]==='mes') || (t==='mes' && tk[i-1]==='todo')) usado[i]=true; });
+  }
+  if(r.tipo==='ganho' && r.parcQtd!=null){
+    r.avisos.push('Parcelamento só existe em Despesas Variáveis — ignorei as parcelas.');
+    r.parcQtd=null; r.parcModo=null;
+  }
+
+  // 7) Categoria (despesas): primeiro as do usuário, depois palavras-chave
+  if(r.tipo!=='ganho'){
+    const custom = (ctx.categoriasCustom||[]).find(c=>{
+      const n=_ltNorm(c.nome).trim(); return n && juntos.includes(' '+n+' ');
+    });
+    if(custom) r.cat = custom.id;
+    else {
+      for(const [cat, palavras] of Object.entries(_LT_CAT_PALAVRAS)){
+        if(palavras.some(p=>tk.includes(p))){ r.cat=cat; break; }
+      }
+    }
+  }
+
+  // 8) Descrição: o que sobrou, sem verbos de comando e sem conectores soltos nas pontas
+  let resto = orig.filter((o,i)=>!usado[i] && !_LT_VERBOS.has(tk[i]) && !['vezes','parcelas','cada','vou','receber','pagar','maos','vivo','banco','conta-corrente'].includes(tk[i]));
+  // "conta" é ambíguo ("conta de luz" × "na conta"): só some quando é forma de recebimento
+  if(r.tipo==='ganho') resto = resto.filter(o=>_ltNorm(o)!=='conta');
+  while(resto.length && _LT_CONECTORES.has(_ltNorm(resto[0]))) resto.shift();
+  while(resto.length && _LT_CONECTORES.has(_ltNorm(resto[resto.length-1]))) resto.pop();
+  r.desc = resto.join(' ');
+  if(r.desc) r.desc = r.desc.charAt(0).toUpperCase() + r.desc.slice(1);
+
+  if(r.valor==null) r.avisos.push('Não encontrei o valor — preencha o campo Valor.');
+  if(!r.desc) r.avisos.push('Não encontrei a descrição — preencha o campo Descrição.');
+  if(r.parcQtd!=null && (r.parcQtd<2 || r.parcQtd>72)){
+    r.avisos.push('Número de parcelas fora do permitido (2 a 72) — confira.');
+  }
+  return r;
+}
+
+window.lancarPorTexto = function(){
+  const campo = document.getElementById('lt-texto');
+  const erro = document.getElementById('lt-erro');
+  const texto = (campo && campo.value || '').trim();
+  if(!texto){ if(erro) erro.textContent='Escreva o lançamento.'; return; }
+  const r = interpretarLancamento(texto, {cartoes, categoriasCustom, hoje:new Date(), mes:cm, ano:cy});
+  if(r.valor==null && !r.desc){
+    if(erro) erro.textContent='Não consegui entender. Tente algo como "gastei 50 no mercado".';
+    return;
+  }
+  closeModal('lancar-texto');
+  if(campo) campo.value='';
+  _ltPreencher(r, texto);
+};
+
+function _ltSetSelect(id, valor){
+  const sel = document.getElementById(id);
+  if(!sel || valor==null) return false;
+  if(!Array.from(sel.options).some(o=>o.value===valor)) return false;
+  sel.value = valor; return true;
+}
+function _ltSet(id, v){ const e=document.getElementById(id); if(e) e.value = (v==null ? '' : v); }
+
+function _ltPreencher(r, texto){
+  const avisos = r.avisos.slice();
+  let modal;
+  if(r.tipo==='ganho'){
+    modal='ganhos'; openModal('ganhos');
+    _ltSet('g-desc', r.desc); _ltSet('g-valor', r.valor);
+    _ltSetSelect('g-status', r.status || 'A receber');
+    if(r.forma) setFormaGanho(r.forma);
+    else avisos.push('Escolha a forma de recebimento (espécie ou conta/Pix).');
+  } else if(r.tipo==='fixa'){
+    modal='fixas'; openModal('fixas');
+    _ltSet('f-desc', r.desc); _ltSet('f-valor', r.valor);
+    if(r.cat && !_ltSetSelect('f-cat', r.cat)){ _ltSetSelect('f-cat','outros'); avisos.push('A categoria sugerida não existe em Despesas Fixas — usei "Outros".'); }
+    else if(!r.cat) _ltSetSelect('f-cat','outros');
+    _ltSet('f-venc', r.venc || (r.data ? Number(r.data.slice(8,10)) : ''));
+    _ltSetSelect('f-status', r.status || 'A pagar');
+    const rep=document.getElementById('f-repeat'); if(rep && rep.checked){ rep.checked=false; toggleRepeatOptions(); }
+  } else {
+    modal='variaveis'; openModal('variaveis');
+    _ltSet('v-desc', r.desc); _ltSet('v-valor', r.valor);
+    if(r.cat && !_ltSetSelect('v-cat', r.cat)){ _ltSetSelect('v-cat','outros'); avisos.push('A categoria sugerida não existe em Despesas Variáveis — usei "Outros".'); }
+    else if(!r.cat) _ltSetSelect('v-cat','outros');
+    _ltSetSelect('v-status', r.status || 'A pagar');
+    _ltSetSelect('v-cartao', r.cartaoId || '');
+    if(r.dataExplicita) _ltSet('v-data', r.data);
+    else if(r.cartaoId){ _ltSet('v-data', _hojeISO()); aplicarVencimentoCartao(); }
+    else _ltSet('v-data', _hojeISO());
+    const parc=document.getElementById('v-parc');
+    if(parc){
+      parc.checked = r.parcQtd!=null && r.parcQtd>=2;
+      toggleParcelas();
+      if(parc.checked){
+        _ltSet('v-parc-qtd', Math.min(r.parcQtd,72));
+        _ltSetSelect('v-parc-modo', r.parcModo||'total');
+        const and=document.getElementById('v-parc-andamento'); if(and && and.checked){ and.checked=false; toggleParcAndamento(); }
+        updateParcPreview();
+      }
+    }
+  }
+  if(!(r.tipo==='variavel' && r.parcQtd>=2)) avisos.push('Vai entrar em ' + MN[cm] + '/' + cy + ' (mês aberto no app).');
+
+  const box = document.querySelector('#modal-'+modal+' .modal h3');
+  if(box){
+    const div = document.createElement('div');
+    div.className = 'lt-aviso';
+    div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.5;color:var(--muted)';
+    div.innerHTML = '✨ Preenchido a partir de: <strong style="color:var(--text)">“' + _esc(texto) + '”</strong><br>Confira os campos e toque em <strong>Adicionar</strong> para salvar.'
+      + (avisos.length ? '<ul style="margin:6px 0 0 16px;padding:0">' + avisos.map(a=>'<li>'+_esc(a)+'</li>').join('') + '</ul>' : '');
+    box.insertAdjacentElement('afterend', div);
+  }
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey && e.target && e.target.id==='lt-texto'){ e.preventDefault(); lancarPorTexto(); }
+});
 
 // ── RENDER ALL ───────────────────────────────────────────────────────────────
 function renderAll(){checkVencimentos();renderGanhos();renderFixas();renderVariaveis();renderEconomias();renderGerais();  renderAnual();
